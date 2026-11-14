@@ -164,7 +164,8 @@ export function install(ctx: Context): void {
           }
         } }
       const color = { id: 'color', label: '会话颜色', run: () => update({ palette: id }) }
-      if (!applicable(id)) return [color, recycle]
+      const recycleOptions = view.snapshot?.canRecycle ? [recycle] : []
+      if (!applicable(id)) return [color, ...recycleOptions]
       const ids = members(id)
       const invalidSelection = ids.some(member => view.archived.has(member))
       const parent = parentOf(id)
@@ -196,7 +197,7 @@ export function install(ctx: Context): void {
         ...errors.map(edge => ({ id: `retry-${edge.id}`, label: `重试摘要 · ${title(edge.child)}`,
           run: () => perform({ type: 'retry', id: edge.id }) })),
         color,
-        recycle,
+        ...recycleOptions,
       ]
     },
   }), 'session-tree: native session menu')

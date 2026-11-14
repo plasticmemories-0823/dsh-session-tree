@@ -114,6 +114,7 @@ export interface ReceiptBatch {
 }
 
 export interface TreeSnapshot {
+  canRecycle?: boolean
   sessions: SessionRow[]
   relations: Relation[]
   colors: Record<string, ColorMark>

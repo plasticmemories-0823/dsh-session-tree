@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSH 会话树管理器</title>
+  <link rel="stylesheet" href="manager.css">
+  <script type="module" src="ui.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>DSH 会话树管理器</h1>
+        <p id="profile"></p>
+      </div>
+      <button id="refresh" type="button">刷新状态</button>
+    </header>
+    <dl>
+      <div><dt>DSH 版本</dt><dd id="version">—</dd></div>
+      <div><dt>已安装插件</dt><dd id="installed">—</dd></div>
+      <div><dt>安装包版本</dt><dd id="release">—</dd></div>
+    </dl>
+    <p id="status" role="status">正在检查 DSH 配置…</p>
+    <div class="actions">
+      <button class="primary" id="install" type="button" disabled>安装插件</button>
+      <button id="uninstall" type="button" disabled>卸载插件</button>
+      <button id="close" type="button">关闭管理器</button>
+    </div>
+    <details id="details" hidden>
+      <summary>操作日志</summary>
+      <pre id="log"></pre>
+    </details>
+  </main>
+</body>
+</html>

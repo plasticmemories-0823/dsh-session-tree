@@ -475,7 +475,7 @@ class SessionTree {
   private async snapshot(signal: AbortSignal): Promise<TreeSnapshot> {
     const [sessions, state] = await Promise.all([this.catalog(signal), this.store.refresh()])
     const archived = this.archived()
-    return { sessions, relations: state.relations.filter(row => !archived.has(row.parent) && !archived.has(row.child)),
+    return { canRecycle: process.platform === 'win32', sessions, relations: state.relations.filter(row => !archived.has(row.parent) && !archived.has(row.child)),
       colors: state.colors,
       created: Object.keys(state.titles),
       pending: Object.entries(state.pending).map(([id, value]) => ({ id, error: value.error, hasPrompt: !!value.first })),

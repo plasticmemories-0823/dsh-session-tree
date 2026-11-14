@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, sans-serif;
+  color: light-dark(#162c25, #e6f4ed);
+  background: light-dark(#eef4f0, #111c17);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: clamp(14px, 8vw, 80px) 16px; }
+main {
+  margin: auto;
+  max-width: 42rem;
+  padding: clamp(16px, 5vw, 36px);
+  background: light-dark(#fff, #1a2a22);
+  border: 1px solid light-dark(#d5e2da, #3a5043);
+  border-radius: 16px;
+}
+header, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+header { justify-content: space-between; }
+h1 { margin: 0; font-size: clamp(1.4rem, 5vw, 1.85rem); }
+#profile { margin: 8px 0 0; }
+dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 14px;
+  background: light-dark(#f1f6f3, #24362c);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 24px 0 16px;
+}
+dt, #profile { color: light-dark(#45645a, #b1c6ba); font-size: .875rem; }
+dd { margin: 4px 0 0; overflow-wrap: anywhere; font-weight: 600; }
+#status { margin: 0 0 18px; line-height: 1.6; }
+button {
+  padding: 8px 12px;
+  min-height: 40px;
+  font: inherit;
+  background: transparent;
+  color: inherit;
+  border: 1px solid light-dark(#b7cabc, #6b8877);
+  border-radius: 8px;
+  cursor: pointer;
+}
+button.primary { background: #17694c; color: white; border-color: #17694c; }
+button:enabled:hover { box-shadow: inset 0 0 0 1px currentColor; }
+button:disabled { cursor: default; opacity: .5; }
+:focus-visible { outline: 2px solid light-dark(#17694c, #83dbae); outline-offset: 3px; }
+details { margin-top: 18px; }
+pre { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
