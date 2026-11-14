@@ -4,6 +4,16 @@ DeepSeek Harness 会话树插件。它在 DSH 原生侧栏中组织已有会话�
 
 [下载 Windows 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/latest/download/dsh-session-tree-windows.zip) · [查看发行版本](https://github.com/plasticmemories-0823/dsh-session-tree/releases)
 
+## 实际案例 · 《铁甲残阳·归》
+
+把已有剧本和美术会话组织成一棵会话树，交付了包含两小关和一场 Boss 战的单文件离线游戏。插件从原会话恢复美术回执，将 Boss 场景图交给整合会话。整合完成后，验收会话自动启动，根会话在收到结果后更新了全部 **8 项任务**。最终 HTML 通过 **64 项全量验收**和 **25 项专项验收**。
+
+**[下载游戏 HTML](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.7.0/tank_game.html)**。下载后用浏览器打开即可离线游玩。
+
+![《铁甲残阳·归》Boss 战前的剧情场景](docs/images/tank-game-preview.png)
+
+[查看会话树交付记录与任务清单](docs/images/completed-project.png)
+
 ## 安装与卸载
 
 已验证环境为 **Windows 桌面版 DeepSeek Harness `0.2.2-rc.3`**。插件依赖该版本的工作区客户端，安装器会检查版本。请先从 [DeepSeek Harness 官方项目](https://github.com/deepseek-ai/deepseek-harness) 安装对应版本并启动一次。使用安装包时无需单独安装 Node.js。
@@ -68,12 +78,6 @@ $tgz = (Resolve-Path '.\dsh-session-tree-0.7.0.tgz').Path.Replace('\', '/')
 父会话在运行时可以读取新回执。父会话已进入空闲状态时，插件可在该批委派任务结算后自动启动一轮后续处理，用于核验产物、更新任务清单和汇报结果。用户直接在子会话中发起的对话只生成回执，由父会话在下一轮推理时读取。父会话主动停止或被归档时，自动续跑暂停。任务显示「待核对」时，可打开对应子会话检查执行记录。
 
 会话层级、配色、任务和回执保存在 `$DSH_HOME/session-tree/state.json`，默认位于当前用户的 `.dsh` 目录。任务执行、摘要和自动续跑使用 DSH 配置的模型，可能产生模型用量。
-
-### 项目示例 · 《铁甲残阳》
-
-从剧本和美术会话建立会话树后，父会话委派了美术、整合和验收任务。升级至 `0.7.0` 后，插件从原会话恢复了此前摘要失败的美术回执，将 Boss 场景图的路径随任务交给整合会话。整合完成后，验收会话自动启动。收到结果后，根会话更新了全部 **8 项任务**。最终单文件 HTML 通过 **64 项全量验收**和 **25 项专项验收**。
-
-![根会话交付单文件游戏与验收报告，任务清单显示八项已完成](docs/images/completed-project.png)
 
 ## 从源码构建
 
