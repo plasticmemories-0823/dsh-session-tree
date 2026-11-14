@@ -1,0 +1,7 @@
+- id: ui-workspace
+  disabled: true
+- insert:
+    - id: session-tree-workspace
+      name: ./lib/workspace/index.js
+    - id: session-tree
+      name: dsh-session-tree
