@@ -1,6 +1,6 @@
 # Linux 安装教程
 
-[下载 Linux 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.0/dsh-session-tree-0.8.0-linux.tar.gz) · [返回项目首页](../README.md)
+[下载 Linux 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1-linux.tar.gz) · [返回项目首页](../README.md)
 
 Linux 版使用 DSH Web。已在 Ubuntu 24.04（WSL，x64）验证图形安装、创建会话树、卸载和重启。
 
@@ -16,8 +16,8 @@ Linux 版使用 DSH Web。已在 Ubuntu 24.04（WSL，x64）验证图形安装�
 2. 如果 `dsh web` 已在运行，先在它的终端按 `Ctrl+C` 停止。从下载目录解压安装包并启动管理器。
 
    ```sh
-   tar -xzf dsh-session-tree-0.8.0-linux.tar.gz
-   cd dsh-session-tree-0.8.0-linux
+   tar -xzf dsh-session-tree-0.8.1-linux.tar.gz
+   cd dsh-session-tree-0.8.1-linux
    sh ./manage.sh
    ```
 

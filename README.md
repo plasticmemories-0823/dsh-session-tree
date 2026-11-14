@@ -1,6 +1,8 @@
 # dsh-session-tree
 
-DeepSeek Harness 会话树插件。它在 DSH 原生侧栏中组织已有会话，支持多级任务委派、依赖调度、产物交接和执行回执。树中的每个节点都是一个可独立打开和继续使用的 DSH 会话。
+一套在 DSH 会话里打磨好的品牌规范，后来要用到官网、产品手册和发布物料。每开一个项目，你都得重新交代已经定下来的配色、字体和素材路径吗？
+
+**dsh-session-tree** 让你把做过的会话直接挂到新项目下。在 DSH 原生侧栏，按住 **Ctrl**（macOS 用 **⌘**）把「品牌规范」拖到「官网改版」上，再从原会话拖一份到「产品手册」。两个项目各自获得一条保留相关历史的子会话，可以继续提需求、派任务、收结果。原会话仍然可以独立打开，后续交接时也能回到具体会话查看请求、回复和产物。
 
 [Windows 安装](#windows) · [Linux 安装](docs/install-linux.md) · [macOS 安装](docs/install-macos.md) · [发行版本](https://github.com/plasticmemories-0823/dsh-session-tree/releases)
 
@@ -20,15 +22,15 @@ DeepSeek Harness 会话树插件。它在 DSH 原生侧栏中组织已有会话�
 
 已验证环境为 **Windows 桌面版 DeepSeek Harness `0.2.2-rc.3`**。插件依赖该版本的工作区客户端，安装器会检查版本。请先从 [DeepSeek Harness 官方项目](https://github.com/deepseek-ai/deepseek-harness) 安装对应版本并启动一次。使用安装包时无需单独安装 Node.js。
 
-1. 下载并解压 Windows 安装包，双击 `DSH Session Tree Manager.exe`。程序会显示 DSH 安装位置、插件当前版本和安装包版本。需要时点「选择程序…」定位 `DeepSeek Harness.exe`。[下载 Windows 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.7.1/dsh-session-tree-windows.zip)
+1. 下载并解压 Windows 安装包，双击 `DSH Session Tree Manager.exe`。程序会显示 DSH 安装位置、插件当前版本和安装包版本。需要时点「选择程序…」定位 `DeepSeek Harness.exe`。[下载 Windows 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-windows.zip)
 2. 从 DSH 应用菜单或系统托盘退出 DSH。管理器检测到退出后，点击「安装插件」或「安装此版本」。安装完成后点击「打开 DSH」。
 3. 要卸载时，重新打开同一个管理器，退出 DSH 后点击「卸载插件」并确认。原始会话和会话树数据仍保存在本机。操作失败时可展开「操作日志」。
 
-也可以下载 Windows 对应的 [v0.7.1 插件包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.7.1/dsh-session-tree-0.7.1.tgz) 手动安装。请在包所在目录运行以下命令，并将 `$dsh` 改为实际安装路径。安装后保留 `.tgz`，便于 DSH 的包管理器继续解析该依赖。
+也可以下载 [v0.8.1 插件包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1.tgz) 手动安装。请在包所在目录运行以下命令，并将 `$dsh` 改为实际安装路径。安装后保留 `.tgz`，便于 DSH 的包管理器继续解析该依赖。
 
 ```powershell
 $dsh = 'C:\path\to\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd'
-$tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
+$tgz = (Resolve-Path '.\dsh-session-tree-0.8.1.tgz').Path.Replace('\', '/')
 & $dsh plugin --profile desktop add "file:$tgz"
 ```
 
@@ -41,7 +43,21 @@ $tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
 - Linux 使用 DSH Web。[Linux 下载与安装教程](docs/install-linux.md)
 - macOS 使用 DSH 桌面版。[macOS 下载与安装教程](docs/install-macos.md)
 
+已有 `dsh` 命令的用户也可以直接安装 Release 中的预构建插件包。Linux 使用 `web` 配置，macOS 和 Windows 使用桌面版自带的 CLI，并将命令中的 `web` 改为 `desktop`。安装后重启对应的 DSH 进程。
+
+```sh
+dsh plugin --profile web add https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1.tgz
+```
+
 ## 快速开始
+
+### 挂载到已有会话
+
+1. 在侧栏找到需要复用的会话。按住 **Ctrl**（macOS 用 **⌘**）并拖到已有的目标会话行上。普通拖动用于调整顺序。
+2. 看到「挂载到 XXX 下」后松开鼠标。有旧项目上下文或未选中的子会话时，先阅读提示，再点「确认挂载」。
+3. 展开目标会话即可打开新挂载的子会话。挂载会使用来源会话的副本，原会话仍可供其他项目复用。副本保留已有历史，两个项目中的后续对话各自独立。
+
+### 从多个会话创建共同父会话
 
 1. 在同一个工作区，按住 **Ctrl**（macOS 使用 **⌘**）选择两个已有会话，然后右键选择「创建共同父会话」。插件为每个来源创建副本并挂载到新的根会话下。来源会话仍可独立使用。
 2. 在根会话发送首条任务说明。明确交付要求、执行分工和任务依赖。可以使用下面这条示例。
@@ -60,7 +76,7 @@ $tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
 | Ctrl / ⌘ + 单击 | 切换单个会话的选中状态。 |
 | Shift + 单击父会话 | 切换整个分支的选中状态，包含折叠的后代会话。 |
 | 普通拖动 | 按 DSH 原生规则调整会话顺序。 |
-| Ctrl / ⌘ + 拖到目标会话 | 将来源会话或选中的分支复制到目标会话下。选中的后代会话挂载到最近的已选祖先会话副本下。复制可能保留原聊天中的项目背景，界面会在相关操作中提示。 |
+| Ctrl / ⌘ + 拖到目标会话 | 出现「挂载到 XXX 下」时松开鼠标。来源会话以副本挂载，原会话保留。选中的后代会话挂载到最近的已选祖先会话副本下。 |
 | 右键 → 创建子会话 | 创建子会话并同步与当前任务相关的背景信息。 |
 | 多选 → 创建共同父会话 | 创建根会话并挂载来源会话的副本。发送首条任务说明后同步分工和任务背景。 |
 | 多选 → 合并到新会话 | 创建一个独立会话，整合所选会话的摘要并保留来源入口。 |

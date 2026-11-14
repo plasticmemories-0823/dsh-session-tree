@@ -10,7 +10,7 @@ $env:SESSION_TREE_DSH_EXE = 'C:\path\to\DeepSeek Harness\DeepSeek Harness.exe'
 $env:SESSION_TREE_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
 $dsh = Join-Path (Split-Path $env:SESSION_TREE_DSH_EXE) 'resources\runtime\cli\bin\dsh.cmd'
-$tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
+$tgz = (Resolve-Path '.\dsh-session-tree-0.8.1.tgz').Path.Replace('\', '/')
 & $dsh plugin --profile desktop add "file:$tgz"
 node tests/browser.mjs
 ```

@@ -221,9 +221,9 @@ function ConfirmDialog() {
   const { confirmation } = useView()
   if (!confirmation) return null
   const recycle = confirmation.action === 'recycle'
-  return <Modal open title={recycle ? '删除会话' : '确认复制'} closeLabel="关闭" onClose={() => confirmation.settle(false)} footer={<>
+  return <Modal open title={recycle ? '删除会话' : '确认挂载'} closeLabel="关闭" onClose={() => confirmation.settle(false)} footer={<>
     <Button variant="outline" onClick={() => confirmation.settle(false)}>取消</Button>
-    <Button variant="outline" onClick={() => confirmation.settle(true)}>{recycle ? '移到回收站' : '确认复制'}</Button>
+    <Button variant="outline" onClick={() => confirmation.settle(true)}>{recycle ? '移到回收站' : '确认挂载'}</Button>
   </>}><p className="dsh-tree-copy-message">{confirmation.message}</p></Modal>
 }
 
@@ -494,7 +494,7 @@ export function handleDrop(row: Row, event: DragEvent, commit: boolean): boolean
     if (dropTarget !== event.currentTarget) clearTarget()
     dropTarget = event.currentTarget as HTMLElement
     dropTarget.dataset.sessionTreeDrop = reason ? 'invalid' : 'valid'
-    dropTarget.dataset.sessionTreeDropLabel = reason ?? `复制到 ${title(row.id, row.title)} 下`
+    dropTarget.dataset.sessionTreeDropLabel = reason ?? `挂载到 ${title(row.id, row.title)} 下`
     return true
   }
   const children = [...dragging]
@@ -518,7 +518,7 @@ export function handleDrop(row: Row, event: DragEvent, commit: boolean): boolean
   if (linked.length) {
     warnings.push(`${linked.join('\n')}\n\n副本会携带已经写进历史的旧父会话任务及部分上下文，可能影响新项目。原会话留在原父会话下，之后各自独立。`)
   }
-  const prompt = [`复制到「${title(row.id)}」下？`, ...warnings].join('\n\n')
+  const prompt = [`挂载到「${title(row.id)}」下？`, ...warnings].join('\n\n')
   void (warnings.length ? confirm(prompt) : Promise.resolve(true))
     .then(accepted => { if (accepted) return perform(action) })
   return true

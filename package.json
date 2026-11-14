@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-tree",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Conversation trees, visible subagents, and task handoffs for DeepSeek Harness",
   "license": "MIT",
   "repository": {
@@ -30,7 +30,8 @@
     "prepack": "npm run build"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=24",
+    "dsh": "0.2.2-rc.3"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh": "0.2.2-rc.3",

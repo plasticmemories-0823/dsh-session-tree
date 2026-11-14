@@ -1,6 +1,6 @@
 # macOS 安装教程
 
-[下载 macOS 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.0/dsh-session-tree-0.8.0-macos.tar.gz) · [返回项目首页](../README.md)
+[下载 macOS 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1-macos.tar.gz) · [返回项目首页](../README.md)
 
 macOS 版使用 DSH 桌面版。已验证打包和模拟安装、卸载，尚无 Mac 真机测试结果。
 
@@ -10,8 +10,8 @@ macOS 版使用 DSH 桌面版。已验证打包和模拟安装、卸载，尚无
 2. 解压本页提供的插件安装包，双击 `Manage.command`。也可以在终端进入下载目录，再运行以下命令。如果已用 Finder 解压，直接进入解压目录运行最后一条命令。
 
    ```sh
-   tar -xzf dsh-session-tree-0.8.0-macos.tar.gz
-   cd dsh-session-tree-0.8.0-macos
+   tar -xzf dsh-session-tree-0.8.1-macos.tar.gz
+   cd dsh-session-tree-0.8.1-macos
    sh ./Manage.command
    ```
 
