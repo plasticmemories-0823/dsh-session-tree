@@ -18,19 +18,19 @@ DeepSeek Harness 会话树插件。它在 DSH 原生侧栏中组织已有会话�
 
 已验证环境为 **Windows 桌面版 DeepSeek Harness `0.2.2-rc.3`**。插件依赖该版本的工作区客户端，安装器会检查版本。请先从 [DeepSeek Harness 官方项目](https://github.com/deepseek-ai/deepseek-harness) 安装对应版本并启动一次。使用安装包时无需单独安装 Node.js。
 
-1. 下载并完整解压 `dsh-session-tree-windows.zip`。
-2. 通过 DSH 应用菜单或系统托盘退出 DSH，双击 `Install.cmd`。如果安装器无法自动定位应用，手动选择安装目录中的 `DeepSeek Harness.exe`。
-3. 安装成功后，安装器会重新启动 DSH。在原生侧栏中即可使用会话树。升级使用相同步骤。
+1. 下载并解压 `dsh-session-tree-windows.zip`，双击 `DSH Session Tree Manager.exe`。程序会显示 DSH 安装位置、插件当前版本和安装包版本。需要时点「选择程序…」定位 `DeepSeek Harness.exe`。
+2. 从 DSH 应用菜单或系统托盘退出 DSH。管理器检测到退出后，点击「安装插件」或「安装此版本」。安装完成后点击「打开 DSH」。
+3. 要卸载时，重新打开同一个管理器，退出 DSH 后点击「卸载插件」并确认。原始会话和会话树数据仍保存在本机。操作失败时可展开「操作日志」。
 
 也可以下载 Release 中的 `.tgz` 手动安装。请在包所在目录运行以下命令，并将 `$dsh` 改为实际安装路径。安装后保留 `.tgz`，便于 DSH 的包管理器继续解析该依赖。
 
 ```powershell
 $dsh = 'C:\path\to\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd'
-$tgz = (Resolve-Path '.\dsh-session-tree-0.7.0.tgz').Path.Replace('\', '/')
+$tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
 & $dsh plugin --profile desktop add "file:$tgz"
 ```
 
-卸载前退出 DSH，然后运行 `& $dsh plugin --profile desktop remove dsh-session-tree`。重启后恢复 DSH 原生侧栏。原始会话和插件状态文件仍保存在本机。
+命令行卸载使用 `& $dsh plugin --profile desktop remove dsh-session-tree`。重启后恢复 DSH 原生侧栏。
 
 ## 快速开始
 

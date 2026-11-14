@@ -10,9 +10,9 @@ $env:SESSION_TREE_DSH_EXE = 'C:\path\to\DeepSeek Harness\DeepSeek Harness.exe'
 $env:SESSION_TREE_BROWSER = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
 $dsh = Join-Path (Split-Path $env:SESSION_TREE_DSH_EXE) 'resources\runtime\cli\bin\dsh.cmd'
-$tgz = (Resolve-Path '.\dsh-session-tree-0.7.0.tgz').Path.Replace('\', '/')
+$tgz = (Resolve-Path '.\dsh-session-tree-0.7.1.tgz').Path.Replace('\', '/')
 & $dsh plugin --profile desktop add "file:$tgz"
 node tests/browser.mjs
 ```
 
-公开发布前也用解压后的 `Install.cmd` 安装到隔离的桌面配置并运行同一套回归。测试 `Install.ps1` 时可通过 `-DshExe` 指定应用，通过 `-NoLaunch` 跳过安装后打开应用的步骤。
+发布验收也应使用解压后的 `DSH Session Tree Manager.exe`。在隔离配置中检查安装、卸载、重新安装，以及 DSH 运行时的操作提示。管理器可接收 DSH 可执行文件路径作为第一个参数，供自定义安装目录或测试使用。

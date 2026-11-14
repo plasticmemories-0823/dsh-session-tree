@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-tree",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Conversation trees, visible subagents, and task handoffs for DeepSeek Harness",
   "license": "MIT",
   "repository": {
