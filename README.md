@@ -18,19 +18,21 @@
 
 ## 安装与卸载
 
+**v0.10.1** 适用于 DeepSeek Harness **`0.2.2-rc.5`**。仍在使用 DSH `0.2.2-rc.3` 的用户可下载 [v0.8.1](https://github.com/plasticmemories-0823/dsh-session-tree/releases/tag/v0.8.1)。
+
 ### Windows
 
-已验证环境为 **Windows 桌面版 DeepSeek Harness `0.2.2-rc.3`**。插件依赖该版本的工作区客户端，安装器会检查版本。请先从 [DeepSeek Harness 官方项目](https://github.com/deepseek-ai/deepseek-harness) 安装对应版本并启动一次。使用安装包时无需单独安装 Node.js。
+请使用 **Windows 桌面版 DeepSeek Harness `0.2.2-rc.5`**。安装器会检查 DSH 版本。请先从 [DeepSeek Harness 官方项目](https://github.com/deepseek-ai/deepseek-harness) 安装对应版本并启动一次。使用安装包时无需单独安装 Node.js。
 
-1. 下载并解压 Windows 安装包，双击 `DSH Session Tree Manager.exe`。程序会显示 DSH 安装位置、插件当前版本和安装包版本。需要时点「选择程序…」定位 `DeepSeek Harness.exe`。[下载 Windows 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-windows.zip)
+1. 下载并解压 Windows 安装包，双击 `DSH Session Tree Manager.exe`。程序会显示 DSH 安装位置、插件当前版本和安装包版本。需要时点「选择程序…」定位 `DeepSeek Harness.exe`。[下载 Windows 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.10.1/dsh-session-tree-windows.zip)
 2. 从 DSH 应用菜单或系统托盘退出 DSH。管理器检测到退出后，点击「安装插件」或「安装此版本」。安装完成后点击「打开 DSH」。
 3. 要卸载时，重新打开同一个管理器，退出 DSH 后点击「卸载插件」并确认。原始会话和会话树数据仍保存在本机。操作失败时可展开「操作日志」。
 
-也可以下载 [v0.8.1 插件包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1.tgz) 手动安装。请在包所在目录运行以下命令，并将 `$dsh` 改为实际安装路径。安装后保留 `.tgz`，便于 DSH 的包管理器继续解析该依赖。
+也可以下载 [v0.10.1 插件包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.10.1/dsh-session-tree-0.10.1.tgz) 手动安装。请在包所在目录运行以下命令，并将 `$dsh` 改为实际安装路径。安装后保留 `.tgz`，便于 DSH 的包管理器继续解析该依赖。
 
 ```powershell
 $dsh = 'C:\path\to\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd'
-$tgz = (Resolve-Path '.\dsh-session-tree-0.8.1.tgz').Path.Replace('\', '/')
+$tgz = (Resolve-Path '.\dsh-session-tree-0.10.1.tgz').Path.Replace('\', '/')
 & $dsh plugin --profile desktop add "file:$tgz"
 ```
 
@@ -38,7 +40,7 @@ $tgz = (Resolve-Path '.\dsh-session-tree-0.8.1.tgz').Path.Replace('\', '/')
 
 ### Linux 和 macOS
 
-在浏览器中使用本地图形管理器安装和卸载。两个版本均需 Node.js 24.9+ 和 DSH `0.2.2-rc.3`。
+在浏览器中使用本地图形管理器安装和卸载。两个版本均需 Node.js 24.9+ 和 DSH `0.2.2-rc.5`。
 
 - Linux 使用 DSH Web。[Linux 下载与安装教程](docs/install-linux.md)
 - macOS 使用 DSH 桌面版。[macOS 下载与安装教程](docs/install-macos.md)
@@ -46,7 +48,7 @@ $tgz = (Resolve-Path '.\dsh-session-tree-0.8.1.tgz').Path.Replace('\', '/')
 已有 `dsh` 命令的用户也可以直接安装 Release 中的预构建插件包。Linux 使用 `web` 配置，macOS 和 Windows 使用桌面版自带的 CLI，并将命令中的 `web` 改为 `desktop`。安装后重启对应的 DSH 进程。
 
 ```sh
-dsh plugin --profile web add https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1.tgz
+dsh plugin --profile web add https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.10.1/dsh-session-tree-0.10.1.tgz
 ```
 
 ## 快速开始
@@ -83,6 +85,10 @@ dsh plugin --profile web add https://github.com/plasticmemories-0823/dsh-session
 | 点击颜色圆点 | 设置单个会话或整棵树的颜色。后代会话默认继承根会话颜色，解除挂载后保留颜色标记。 |
 | 右键 → 解除挂载 | 移除父子关系并保留会话记录。 |
 | 归档 / 移到回收站 | 归档会解除相关挂载。Windows 另有「移到回收站」，可移除所选会话的本地记录并保留已有副本和工作区文件。 |
+| 多选 → 移到回收站 | Windows 用户可用 Ctrl 或 Shift 多选，再右键其中一条批量移到回收站。确认窗口列出所选会话，失败时提示原因。 |
+| 工作区栏 → ⚙ | 在「会话树设置」中为新子会话的代号选择中文、English 或跟随 DeepSeek Harness。已保存的代号保留。 |
+
+插件的侧栏、右键菜单、状态、通知和自动标题跟随 DSH 的界面语言。切换系统语言时，由插件生成且未被用户改名的标题一起切换。代号仍按会话树设置生成。
 
 ![原生侧栏中的会话层级、职责分工和颜色标记](docs/images/session-tree.png)
 
@@ -94,15 +100,33 @@ dsh plugin --profile web add https://github.com/plasticmemories-0823/dsh-session
 | --- | --- |
 | `session_tree_list` | 查询直属子会话及其职责。 |
 | `session_tree_create` | 创建可在侧栏打开的直属子会话。 |
-| `session_tree_send` | 委派任务。通过 `after` 指定同一父会话下的前置任务 ID，前置任务完成后，插件将回执和产物路径附到下游请求。 |
+| `session_tree_plan` | 登记用户目标、验收深度和整体验收标准。 |
+| `session_tree_send` | 用会话 ID、唯一代号或唯一标题委派。通过 `after` 声明前置任务，插件把结果和产物路径附到下游请求。 |
+| `session_tree_report` | 子会话按编号上报验收结果和证据，用 `artifacts` 声明这份交付的文件。 |
+| `session_tree_accept` | 父会话核对证据后，确认当前整合产物已通过项目验收。 |
 | `session_tree_result` | 查询执行状态和回执，支持分页读取长回复。 |
 | `session_tree_read_source` | 查看合并会话的来源及对应历史。 |
 
 子会话结束一轮执行时，插件先保存执行状态、原始回复和明确列出的产物路径，再异步生成摘要。摘要超限时会重新压缩，分段进度会持久化。摘要失败时，原始回复仍可用于查询和产物交接。
 
+### 分层验收
+
+父会话先根据用户目标登记项目验收标准，派活时为每份交付明确单项标准。子会话逐项回报「通过」「未通过」或「未验证」，附上实际证据。各项交付验收通过后才进入整合，整合完成后按项目标准检查最终产物。返工时保留原标准和其他已通过的交付。
+
+- **轻量任务**优先复用可用的美术、剧情和代码。通常委派给一个合适的子会话，先检查本次交付，再做一次简短的整体验收。例如一关小游戏只检查能否开始、操作和到达结局。
+- **完整任务**在整合后另派一轮整体验收，覆盖用户要求的关键流程和高风险交接。需要独立复核时，可委派给另一条子会话。
+
+在侧栏打开「会话协作记录」即可看到项目标准、单项结果和整体验收状态。模型根据用户需求选择验收深度，插件核对各阶段的回执和编号。
+
+### 新项目的独立工作目录
+
+涉及新文件的项目默认在当前工作区的 `.dsh-session-tree/<项目 ID>/` 下建立任务目录。普通执行会话写入各自的子目录，整合会话把最终文件放进自己的 `output/`。子会话通过验收回执提交产物路径，插件检查文件是否存在且位于对应的任务目录中，再把它交给声明了依赖的整合或验收会话。旧项目的素材仍可按任务要求引用。
+
+明确要求接着改旧项目时，父会话可以选用 `existing` 模式。目录划分用于协作和产物验收，实际文件读写权限仍由 DSH 的权限设置决定。
+
 父会话在运行时可以读取新回执。父会话已进入空闲状态时，插件可在该批委派任务结算后自动启动一轮后续处理，用于核验产物、更新任务清单和汇报结果。用户直接在子会话中发起的对话只生成回执，由父会话在下一轮推理时读取。父会话主动停止或被归档时，自动续跑暂停。任务显示「待核对」时，可打开对应子会话检查执行记录。
 
-会话层级、配色、任务和回执保存在 `$DSH_HOME/session-tree/state.json`，默认位于当前用户的 `.dsh` 目录。任务执行、摘要和自动续跑使用 DSH 配置的模型，可能产生模型用量。
+会话层级、配色、任务、验收计划和回执保存在 `$DSH_HOME/session-tree/state.json`，默认位于当前用户的 `.dsh` 目录。任务执行、摘要和自动续跑使用 DSH 配置的模型，可能产生模型用量。
 
 ## 从源码构建
 

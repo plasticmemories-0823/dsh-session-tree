@@ -1,3 +1,5 @@
+import { translator } from './i18n.ts'
+
 export const route = '/api/session-tree'
 
 export const sessionPalette = [
@@ -42,6 +44,19 @@ export interface ChildRole {
   responsibility: string
 }
 
+export const aliasLanguages = ['follow', 'zh', 'en'] as const
+export type AliasLanguage = typeof aliasLanguages[number]
+
+export interface TreePreferences {
+  aliasLanguage: AliasLanguage
+  interfaceLocale: string
+}
+
+export interface RecycleResult {
+  recycled: string[]
+  failed: { id: string; reason: string }[]
+}
+
 export interface SessionRow {
   id: string
   title: string
@@ -66,6 +81,7 @@ export interface Receipt {
   output?: string
   artifacts?: string[]
   summary?: ReceiptSummary
+  acceptance?: TaskAcceptance
 }
 
 export interface SummaryAttempt {
@@ -103,6 +119,37 @@ export interface Task {
   relation?: string
   parentTitle?: string
   objective?: string
+  acceptance?: TaskAcceptance
+}
+
+export interface ProjectAcceptance {
+  id: string
+  parent: string
+  objective: string
+  depth: 'light' | 'thorough'
+  checks: string[]
+  acceptedBy?: string
+  superseded?: true
+  directory?: string
+}
+
+export interface CheckResult {
+  check: number
+  status: 'passed' | 'failed' | 'unverified'
+  evidence: string
+}
+
+export interface TaskAcceptance {
+  project: string
+  phase: 'work' | 'integration' | 'review'
+  replaces?: string
+  integration?: string
+  checks: string[]
+  projectChecks: string[]
+  local?: CheckResult[]
+  final?: CheckResult[]
+  workDirectory?: string
+  artifacts?: string[]
 }
 
 export interface ReceiptBatch {
@@ -124,6 +171,8 @@ export interface TreeSnapshot {
   merged: { id: string; sources: Source[] }[]
   receipts: Receipt[]
   tasks: Task[]
+  projects: ProjectAcceptance[]
+  preferences: TreePreferences
 }
 
 export type Action =
@@ -133,15 +182,19 @@ export type Action =
   | { type: 'merge' | 'new-parent'; anchor: string; sources: string[] }
   | { type: 'retry'; id: string }
   | { type: 'recycle'; id: string }
+  | { type: 'recycle-batch'; ids: string[] }
+  | { type: 'preferences'; aliasLanguage: AliasLanguage }
+  | { type: 'interface-locale'; locale: string }
   | { type: 'color'; id: string; value: string; unify: boolean }
 
-export function canAttach(relations: readonly Relation[], parent: string, children: readonly string[], copy = false): string | undefined {
-  if (!children.length) return '请选择要挂载的会话'
-  if (children.includes(parent)) return '不能挂到自己下面'
+export function canAttach(relations: readonly Relation[], parent: string, children: readonly string[], copy = false, locale = 'zh'): string | undefined {
+  const t = translator(locale)
+  if (!children.length) return t('Select sessions to attach.', '请选择要挂载的会话')
+  if (children.includes(parent)) return t('A session cannot be attached to itself.', '不能挂到自己下面')
   const parents = new Map(relations.map(row => [row.child, row.parent]))
-  if (ancestorsOf(parent, parents).some(id => children.includes(id))) return '不能挂到自己的后代下面'
-  if (!copy && relations.some(row => children.includes(row.parent))) return '已有子会话的节点不能再挂到其他会话下'
-  if (relations.some(row => row.parent === parent && children.includes(row.child))) return '会话已经挂在此处'
+  if (ancestorsOf(parent, parents).some(id => children.includes(id))) return t('A session cannot be attached to its descendant.', '不能挂到自己的后代下面')
+  if (!copy && relations.some(row => children.includes(row.parent))) return t('Move the branch by attaching a copy.', '已有子会话的节点不能再挂到其他会话下')
+  if (relations.some(row => row.parent === parent && children.includes(row.child))) return t('The session is already attached here.', '会话已经挂在此处')
 }
 
 export function ancestorsOf(id: string, parents: ReadonlyMap<string, string>): string[] {

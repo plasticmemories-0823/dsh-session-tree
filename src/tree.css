@@ -2,6 +2,14 @@
   padding-inline-start: calc(var(--dsh-sidebar-row-padding) - var(--dsh-sidebar-paint-inset) + var(--dsh-workspace-indent, 0px) + var(--dsh-tree-offset));
   position: relative;
 }
+.dsh-tree-settings {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+  border: 0;
+  margin: 0;
+}
+.dsh-tree-settings input { accent-color: Highlight; }
 [data-session-tree-depth]::before {
   position: absolute;
   inset-inline-start: calc(var(--dsh-sidebar-row-padding) + var(--dsh-workspace-indent, 0px) + var(--dsh-tree-offset) - 19px);

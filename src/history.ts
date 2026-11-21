@@ -3,6 +3,7 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import { BlockAssembler, CONTEXT_WINDOW_EXCEEDED_CODE, createSystemMessage, createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, SessionId, SessionStore } from '@deepseek-ai/dsh-session'
+import { translator } from './i18n.ts'
 import { fitText, textSize } from './merge-budget.ts'
 import type { SummaryAttempt } from './protocol.ts'
 
@@ -33,13 +34,13 @@ export async function readHistory(ctx: Context, id: SessionId, signal: AbortSign
   }
 }
 
-export function historyLines(events: readonly SessionEvent[]): string[] {
+export function historyLines(events: readonly SessionEvent[], t = translator()): string[] {
   return events.flatMap(event => {
     const { seq, type, data } = event
     if (type === 'user/message' && (data.source.kind === 'user' || data.source.kind === 'session-tree-task')) {
       const value = textOf(data.content)
       const attachments = data.content.filter(block => block.type !== 'text').map(block => block.type)
-      return [`[${seq} ${data.source.kind}] ${value}${attachments.length ? ` [附件: ${attachments.join(', ')}]` : ''}`]
+      return [`[${seq} ${data.source.kind}] ${value}${attachments.length ? ` [${t('Attachments', '附件')}: ${attachments.join(', ')}]` : ''}`]
     }
     if (type === 'assistant/message') {
       return [`[${seq} assistant] ${textOf(data.message.content)}`]
@@ -87,7 +88,7 @@ function summaryBudget(model: LlmResolvedModelInfo): { output: number; input: nu
 
 async function askSummary(
   ctx: Context, route: Route, id: SessionId, model: LlmResolvedModelInfo, purpose: string, input: string,
-  outputBudget: number, signal: AbortSignal,
+  outputBudget: number, signal: AbortSignal, t = translator(),
 ): Promise<string> {
   const assembler = new BlockAssembler()
   const effort = model.reasoning?.efforts.find(item => item.id === 'off')?.id
@@ -117,14 +118,18 @@ async function askSummary(
       code: finish.failure.code, message: finish.failure.message }, textOf(assembler.interruptedBlocks()))
   }
   const answer = textOf(assembler.blocks()).trim()
-  if (!finishSeen) throw new SummaryFailure({ ...diagnostics(), category: 'stream', message: '模型流未返回结束事件' }, answer)
+  if (!finishSeen) throw new SummaryFailure({ ...diagnostics(), category: 'stream',
+    message: t('The model stream ended without a finish event.', '模型流未返回结束事件') }, answer)
   if (finish.kind === 'max-tokens' || (assembler.usage?.outputTokens ?? 0) > outputTarget) {
-    throw new SummaryFailure({ ...diagnostics(), category: 'output-limit', message: '摘要输出超过允许长度' }, answer)
+    throw new SummaryFailure({ ...diagnostics(), category: 'output-limit',
+      message: t('The summary exceeded the output limit.', '摘要输出超过允许长度') }, answer)
   }
   if (finish.kind !== 'stop') {
-    throw new SummaryFailure({ ...diagnostics(), category: 'provider', message: `摘要异常结束（${finish.kind}）` }, answer)
+    throw new SummaryFailure({ ...diagnostics(), category: 'provider',
+      message: t(`Summary ended unexpectedly (${finish.kind}).`, `摘要异常结束（${finish.kind}）`) }, answer)
   }
-  if (!answer) throw new SummaryFailure({ ...diagnostics(), category: 'empty', message: '模型正常结束但未返回摘要正文' })
+  if (!answer) throw new SummaryFailure({ ...diagnostics(), category: 'empty',
+    message: t('The model returned no summary text.', '模型正常结束但未返回摘要正文') })
   return answer
 }
 
@@ -140,11 +145,12 @@ export async function summarize(
   purpose: string, lines: readonly string[], signal: AbortSignal,
   resume?: { offset: number; text: string; draft?: string; attempts: SummaryAttempt[] },
   checkpoint?: (progress: SummaryProgress) => Promise<void>,
+  t = translator(),
 ): Promise<string> {
-  if (!lines.length) return '暂无已完成的会话内容。'
+  if (!lines.length) return t('There is no completed session content yet.', '暂无已完成的会话内容。')
   const model = await ctx.llm.resolveModelInfo(selection.provider, selection.model, signal)
   const { output, input } = summaryBudget(model)
-  if (input < 512) throw new Error('模型上下文预算太小，无法生成会话摘要')
+  if (input < 512) throw new Error(t('The model context is too small to summarize the session.', '模型上下文预算太小，无法生成会话摘要'))
   const source = lines.join('\n')
   let summary = resume?.text ?? ''
   for (let offset = resume?.offset ?? 0; offset < source.length;) {
@@ -157,12 +163,12 @@ export async function summarize(
       const available = input - textSize(prior) - 256
       const carry = attempt === 2 && draft ? fitText(draft, Math.floor(input / 5)) : ''
       const page = fitText(source.slice(offset), Math.floor((available - textSize(carry)) / (attempt === 3 ? 2 : 1)))
-      if (!page) throw new Error('摘要分段预算不足')
+      if (!page) throw new Error(t('The page exceeds the available summary context.', '摘要分段预算不足'))
       const data = [prior && `Prior page summary:\n${prior}`, carry && `Partial draft, verify against source:\n${carry}`,
         `Current source:\n${page}`].filter(Boolean).join('\n')
       try {
         const instruction = attempt === 1 ? purpose : `${purpose}\nCompress more aggressively. Keep paths, conclusions, and remaining work. Aim for at most 4,000 tokens.`
-        summary = await askSummary(ctx, selection, id, model, instruction, data, output, signal)
+        summary = await askSummary(ctx, selection, id, model, instruction, data, output, signal, t)
         offset += page.length
         await checkpoint?.({ offset, text: summary })
         break
@@ -179,13 +185,13 @@ export async function summarize(
 
 export async function summarizeWithin(
   ctx: Context, route: Route, id: SessionId, model: LlmResolvedModelInfo, purpose: string, text: string,
-  cap: number, signal: AbortSignal,
+  cap: number, signal: AbortSignal, t = translator(),
 ): Promise<string> {
   const window = model.context?.contextWindow ?? 16000
   const { output } = summaryBudget(model)
   const instruction = `${purpose}\nKeep the result within ${cap} UTF-8 bytes. Prioritize concrete facts and references.`
   let inputLimit = Math.min(24000, window - output - 1536) - textSize(instruction) - cap - 256
-  if (inputLimit < 256) throw new Error('合并摘要的可用上下文不足')
+  if (inputLimit < 256) throw new Error(t('There is not enough model context for the merged summary.', '合并摘要的可用上下文不足'))
 
   for (;;) {
     let draft = ''
@@ -195,7 +201,7 @@ export async function summarizeWithin(
         signal.throwIfAborted()
         const page = fitText(remaining, inputLimit)
         const input = draft ? `Prior summary:\n${draft}\nNext section:\n${page}` : page
-        draft = await askSummary(ctx, route, id, model, instruction, input, output, signal)
+        draft = await askSummary(ctx, route, id, model, instruction, input, output, signal, t)
         if (textSize(draft) > cap) {
           const shorter = await askSummary(ctx, route, id, model,
             `Condense to at most ${cap} UTF-8 bytes. Keep complete facts and references.`, fitText(draft, inputLimit + cap), output, signal)

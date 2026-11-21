@@ -10,7 +10,7 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 const folder = dirname(fileURLToPath(import.meta.url))
-const supportedVersion = '0.2.2-rc.3'
+const supportedVersion = '0.2.2-rc.5'
 const plugin = 'dsh-session-tree'
 const platform = process.platform
 const mac = platform === 'darwin'

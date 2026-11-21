@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { ancestorsOf, branchOf, sessionPalette } from './protocol.ts'
-import type { ColorMark, MergedContext, Receipt, ReceiptBatch, Relation, Source, Task } from './protocol.ts'
+import type { ColorMark, MergedContext, ProjectAcceptance, Receipt, ReceiptBatch, Relation, Source, Task, TreePreferences } from './protocol.ts'
 
 interface PendingParent {
   first?: UserMessage
@@ -23,13 +23,16 @@ export interface State {
   titles: Record<string, string>
   receipts: Record<string, Receipt>
   tasks: Record<string, Task>
+  projects: Record<string, ProjectAcceptance>
+  preferences: TreePreferences
   batches: Record<string, ReceiptBatch>
   toolCreates: Record<string, { child: string; attached: boolean }>
   recycling: Record<string, { wasArchived: boolean }>
 }
 
 function empty(): State {
-  return { version: 1, relations: [], colors: {}, pending: {}, savedFirst: {}, merged: {}, mergedContexts: {}, titles: {}, receipts: {}, tasks: {}, batches: {}, toolCreates: {}, recycling: {} }
+  return { version: 1, relations: [], colors: {}, pending: {}, savedFirst: {}, merged: {}, mergedContexts: {}, titles: {}, receipts: {}, tasks: {}, projects: {},
+    preferences: { aliasLanguage: 'follow', interfaceLocale: 'en' }, batches: {}, toolCreates: {}, recycling: {} }
 }
 
 export function fillTreeColors(state: State): void {
@@ -90,6 +93,9 @@ export function removeArchivedRelations(state: State, archived: ReadonlySet<stri
 
 export function removeRecycledSession(state: State, id: string): void {
   removeArchivedRelations(state, new Set([id]))
+  for (const [key, project] of Object.entries(state.projects)) {
+    if (project.parent === id) delete state.projects[key]
+  }
   for (const records of [state.pending, state.savedFirst, state.merged, state.mergedContexts, state.titles, state.recycling, state.colors]) {
     delete records[id]
   }
@@ -98,8 +104,8 @@ export function removeRecycledSession(state: State, id: string): void {
       if (record.parent === id || record.child === id) delete records[key]
     }
   }
-  for (const batch of Object.values(state.batches)) {
-    if (batch.parent === id) delete state.batches[batch.id]
+  for (const [key, batch] of Object.entries(state.batches)) {
+    if (batch.parent === id) delete state.batches[key]
   }
   for (const [key, creation] of Object.entries(state.toolCreates)) {
     if (creation.child === id) delete state.toolCreates[key]
@@ -135,6 +141,8 @@ export class TreeStore {
       state.toolCreates ??= {}
       state.recycling ??= {}
       state.batches ??= {}
+      state.projects ??= {}
+      state.preferences ??= { aliasLanguage: 'follow', interfaceLocale: 'en' }
       return state
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return empty()
@@ -147,10 +155,10 @@ export class TreeStore {
     return withFileLock(this.path, async () => this.current = await this.load())
   }
 
-  async update<T>(edit: (state: State) => T): Promise<T> {
+  async update<T>(edit: (state: State) => T | Promise<T>): Promise<T> {
     return withFileLock(this.path, async () => {
       const next = await this.load()
-      const result = edit(next)
+      const result = await edit(next)
       await writeFileAtomic(this.path, JSON.stringify(next), { mode: 0o600, dirMode: 0o700 })
       this.current = next
       return result

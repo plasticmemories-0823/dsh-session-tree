@@ -19,7 +19,7 @@ internal sealed class Manager
 {
     private const string Plugin = "dsh-session-tree";
     private const string AppName = "DeepSeek Harness.exe";
-    private const string SupportedVersion = "0.2.2-rc.3";
+    private const string SupportedVersion = "0.2.2-rc.5";
     private const string Cli = @"resources\app.asar\dsh\node_modules\@deepseek-ai\dsh-desktop-host\lib\cli.js";
     private static readonly Assembly Bundle = typeof(Manager).Assembly;
     private readonly Window window;
@@ -27,6 +27,9 @@ internal sealed class Manager
     private readonly string profile;
     private readonly string managerDirectory;
     private string executable;
+    private string checkedExecutable;
+    private DateTime checkedArchiveTime;
+    private string checkedVersion;
     private bool busy;
 
     [STAThread]
@@ -181,10 +184,36 @@ internal sealed class Manager
         Refresh(true);
     }
 
+    private string RuntimeVersion()
+    {
+        var directory = Path.GetDirectoryName(executable);
+        var archiveTime = File.GetLastWriteTimeUtc(Path.Combine(directory, @"resources\app.asar"));
+        if (checkedExecutable == executable && checkedArchiveTime == archiveTime) return checkedVersion;
+        string version = null;
+        var start = new ProcessStartInfo(executable, "--expose-internals \"" + Path.Combine(directory, Cli) + "\" --version") {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true
+        };
+        start.EnvironmentVariables["ELECTRON_RUN_AS_NODE"] = "1";
+        try
+        {
+            using (var process = Process.Start(start))
+            {
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                if (process.WaitForExit(5000) && process.ExitCode == 0) version = stdout.Result.Trim();
+                else if (!process.HasExited) process.Kill();
+            }
+        }
+        catch (System.ComponentModel.Win32Exception) { }
+        checkedExecutable = executable;
+        checkedArchiveTime = archiveTime;
+        checkedVersion = String.IsNullOrWhiteSpace(version) ? "版本无法识别" : version;
+        return checkedVersion;
+    }
+
     private void Refresh(bool resetMessage)
     {
         var valid = IsHarness(executable);
-        var version = valid ? FileVersionInfo.GetVersionInfo(executable).FileVersion : "";
+        var version = valid ? RuntimeVersion() : "";
         var compatible = valid && version == SupportedVersion;
         var initialized = File.Exists(Path.Combine(profile, "package.json"));
         string current = null;

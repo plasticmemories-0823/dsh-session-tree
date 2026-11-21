@@ -1,23 +1,23 @@
 # Linux 安装教程
 
-[下载 Linux 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.8.1/dsh-session-tree-0.8.1-linux.tar.gz) · [返回项目首页](../README.md)
+[下载 Linux 安装包](https://github.com/plasticmemories-0823/dsh-session-tree/releases/download/v0.10.1/dsh-session-tree-0.10.1-linux.tar.gz) · [返回项目首页](../README.md)
 
-Linux 版使用 DSH Web。已在 Ubuntu 24.04（WSL，x64）验证图形安装、创建会话树、卸载和重启。
+Linux 版使用 DSH Web。安装管理器会检查 DSH 版本。
 
 ## 安装
 
-1. 安装 **Node.js 24.9 或更高版本**。在终端安装 DSH CLI 和 pnpm。`dsh --version` 应显示 `0.2.2-rc.3`。
+1. 安装 **Node.js 24.9 或更高版本**。在终端安装 DSH CLI 和 pnpm。`dsh --version` 应显示 `0.2.2-rc.5`。
 
    ```sh
-   npm install --global pnpm@11.28.5 @deepseek-ai/dsh@0.2.2-rc.3
+   npm install --global pnpm@11.28.5 @deepseek-ai/dsh@0.2.2-rc.5
    dsh --version
    ```
 
 2. 如果 `dsh web` 已在运行，先在它的终端按 `Ctrl+C` 停止。从下载目录解压安装包并启动管理器。
 
    ```sh
-   tar -xzf dsh-session-tree-0.8.1-linux.tar.gz
-   cd dsh-session-tree-0.8.1-linux
+   tar -xzf dsh-session-tree-0.10.1-linux.tar.gz
+   cd dsh-session-tree-0.10.1-linux
    sh ./manage.sh
    ```
 

@@ -8,8 +8,8 @@ const output = new URL('../lib/workspace/', import.meta.url)
 const manifest = JSON.parse(await readFile(new URL('package.json', upstream), 'utf8'))
 const source = await readFile(new URL('lib/client.js', upstream), 'utf8')
 const hash = createHash('sha256').update(source).digest('hex')
-if (manifest.version !== '0.2.2-rc.3' || hash !== '3ff4116dc91b7dc5cc57e7672e0d7935f992b339be3444a7a72992df218765ba') {
-  throw new Error('The bundled DSH Workspace client must match the verified 0.2.2-rc.3 artifact')
+if (manifest.version !== '0.2.2-rc.5' || hash !== '3ff4116dc91b7dc5cc57e7672e0d7935f992b339be3444a7a72992df218765ba') {
+  throw new Error('The bundled DSH Workspace client must match the verified 0.2.2-rc.5 artifact')
 }
 
 function replaceOnce(input, before, after) {
@@ -62,6 +62,7 @@ client = editFunction(client, 'FlatList', [
 client = editFunction(client, 'WorkspaceBrowser', [
   ['const list=useSessions(state=>state);', 'const nativeList=useSessions(state=>state);const treeState=sessionTree.useView();const list=(0,react.useMemo)(()=>sessionTree.includeCreated(nativeList,treeState),[nativeList,treeState.snapshot]);'],
   ['const archivedSessionIds=useWorkspaces(state=>state.archivedSessionIds);', 'const archivedSessionIds=useWorkspaces(state=>state.archivedSessionIds);sessionTree.useArchived(archivedSessionIds);'],
+  ['headerActionsHidden),children:[wide&&', 'headerActionsHidden),children:[(0,react_jsx_runtime.jsx)(sessionTree.SettingsButton,{className:WorkspaceBrowser_module_css_default.iconButton}),wide&&'],
 ])
 client = replaceOnce(client, 'function apply(ctx){', 'function apply(ctx){sessionTree.install(ctx);')
 

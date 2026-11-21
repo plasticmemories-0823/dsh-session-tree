@@ -39,7 +39,8 @@ const server = createServer(async (request, response) => {
   const action = fixture && (previousTool || messages.indexOf(fixture) >= messages.findLastIndex(message => message.role === 'assistant'))
     ? JSON.stringify(fixture.content) : ''
   const isSummary = system?.includes('Session Tree summarizer')
-  observed.push({ body, latest, isSummary })
+  const observedRequest = { body, latest, isSummary }
+  observed.push(observedRequest)
   const receiptProbe = isSummary && latest.includes('Summarize this final child reply')
   const probe = receiptProbe && latest.match(/(?:RECEIPT-LIMIT|RECEIPT-EMPTY|RECEIPT-RESTART-TAIL)/)?.[0]
   const summaryHit = probe ? (summaryHits.get(probe) ?? 0) + 1 : 0
@@ -141,7 +142,7 @@ const server = createServer(async (request, response) => {
   }))) : isSummary ? `摘要 ${tag} [1]，产物 assets/sprite.png` : `完成 ${latest.slice(0, 200)}`
   const flow = messages.findLast(message => /^FLOW-FIXTURE:/m.test(flatten(message)))
   const targets = flow && flatten(flow).match(/^FLOW-FIXTURE:([\w-]+):([\w-]+)/m)
-  if (!isSummary && targets && !latest.startsWith('来自 ') && !latest.includes('本批派发任务已结算')) {
+  if (!isSummary && targets && !latest.startsWith('From ') && !latest.includes('This batch of child tasks has settled')) {
     if (!previousTool && /^FLOW-FIXTURE:/m.test(latest)) {
       tool = 'session_tree_send'
       input = { child: targets[1], message: 'RECEIPT-EMPTY-FLOW Produce fixture art.' }
@@ -150,7 +151,7 @@ const server = createServer(async (request, response) => {
       input = { child: targets[2], message: 'INTEGRATE-FIXTURE Use the upstream artifact.', after: [result.id] }
     }
   }
-  if (!isSummary && latest.includes('RECEIPT-EMPTY-FLOW') && latest.startsWith('来自 ')) {
+  if (!isSummary && latest.includes('RECEIPT-EMPTY-FLOW') && latest.startsWith('From ')) {
     answer = '绘制完成。产物 [新图](E:/fixture/scene-boss.svg)'
       + '\nRECEIPT-EMPTY'
     await wait(1000)
@@ -158,7 +159,48 @@ const server = createServer(async (request, response) => {
   if (!isSummary && latest === 'CRASH-RECEIPT') {
     answer = 'CRASH-RECEIPT ' + 'continued. '.repeat(2600) + 'RECEIPT-RESTART-TAIL'
   }
-  Object.assign(observed.at(-1), { sent: tool, action: action.slice(0, 100), result: result ?? resultText })
+  const acceptanceRequest = latest.match(/^ACCEPTANCE-TOOL:(.+)$/m)?.[1]
+  if (!isSummary && !previousTool && acceptanceRequest) {
+    ({ tool, input } = JSON.parse(acceptanceRequest))
+  }
+  if (!isSummary && /^From /m.test(latest) && latest.includes('ACCEPTANCE-CHILD-')) {
+    const task = latest.match(/Task ID ([\w-]+)/)?.[1]
+    const pass = { check: 1, status: 'passed', evidence: 'Verified output [fixture artifact](E:/fixture/accepted.html)' }
+    const result = /ACCEPTANCE-CHILD-(?:REVIEW-)?FAIL/.test(latest)
+      ? { ...pass, status: 'failed', evidence: 'Missing expected output' } : pass
+    if (!previousTool && task) {
+      tool = 'session_tree_report'
+      input = latest.includes('ACCEPTANCE-CHILD-REVIEW') ? { task, final: [result] }
+        : latest.includes('ACCEPTANCE-CHILD-LIGHT') ? { task, local: [result], final: [pass] }
+          : { task, local: [result] }
+    }
+    answer = 'Acceptance fixture checked.'
+  }
+  const isolated = messages.findLast(message => /#ISOLATED-(?:WORK|BUILD|REVIEW)/.test(flatten(message))
+    && /Isolated task directory: /.test(flatten(message)))
+  if (!isSummary && isolated && (!previousTool ? latest.includes('#ISOLATED-') : ['write', 'session_tree_report'].includes(priorCall?.name))) {
+    const relay = flatten(isolated)
+    const task = relay.match(/Task ID ([\w-]+)/)?.[1]
+    const folder = relay.match(/^Isolated task directory: (.+)$/m)?.[1]
+    const file = relay.includes('#ISOLATED-WORK') ? 'asset.txt' : 'game.html'
+    const passed = [{ check: 1, status: 'passed', evidence: 'Fixture completed with current artifacts' }]
+    if (!previousTool && relay.includes('#ISOLATED-REVIEW')) {
+      tool = 'session_tree_report'
+      input = { task, final: passed }
+    } else if (!previousTool && folder) {
+      tool = 'write'
+      input = { file_path: join(folder, file), content: 'new fixture deliverable' }
+    } else if (priorCall?.name === 'write' && !toolResult?.is_error) {
+      tool = 'session_tree_report'
+      input = { task, local: passed, artifacts: [file === 'game.html' ? join(home, 'old-fixture-game.html') : file] }
+    } else if (priorCall?.name === 'session_tree_report' && file === 'game.html'
+      && typeof resultText === 'string' && resultText.includes('assigned isolated task directory')) {
+      tool = 'session_tree_report'
+      input = { task, local: passed, artifacts: ['game.html'] }
+    }
+    answer = 'Isolated fixture settled.'
+  }
+  Object.assign(observedRequest, { sent: tool, previous: priorCall?.name, action: action.slice(0, 100), result: result ?? resultText })
   response.writeHead(200, { 'content-type': 'text/event-stream' })
   const event = (type, detail = {}) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...detail })}\n\n`)
   event('message_start', { message: { id: randomUUID(), type: 'message', role: 'assistant', model: body.model,
@@ -196,7 +238,7 @@ async function start() {
     ...(desktop ? { cwd: profile, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] } : {}),
     windowsHide: true,
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1',
-      ...(desktop ? { DSH_CLIENT_VERSION: '0.2.2-rc.3' } : {}),
+      ...(desktop ? { DSH_CLIENT_VERSION: '0.2.2-rc.5' } : {}),
       DEEPSEEK_API_KEY: 'session-tree-fixture', DEEPSEEK_BASE_URL: `http://127.0.0.1:${server.address().port}` },
   })
   for (const pipe of [host.stdout, host.stderr]) pipe.on('data', chunk => { logs += chunk })
@@ -277,6 +319,17 @@ try {
   }
   const tree = page.locator('[data-sidebar-list-area]').getByRole('tree')
   await tree.waitFor()
+  const settingsButton = page.getByRole('button', { name: 'Session Tree settings', exact: true })
+  const setNaming = async label => {
+    await settingsButton.click()
+    const dialog = page.getByRole('dialog', { name: 'Session Tree settings' })
+    await dialog.getByRole('radio', { name: label, exact: true }).check()
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+  }
+  await eventually(async () => (await snapshot()).preferences.interfaceLocale === 'en', 'initial interface language')
+  await setNaming('Chinese')
+  assert.equal((await snapshot()).preferences.aliasLanguage, 'zh')
   assert.equal(await page.locator('.dsh-tree-panel').count(), 0)
   const a = await make('生图', '生图：透明立绘，保存到 assets/sprite.png')
   const b = await make('生视频', '生视频：制作 4 秒片头')
@@ -299,7 +352,7 @@ try {
   const relation = (parent, child) => eventually(async () => (await snapshot()).relations.find(row => row.parent === parent && row.child === child), 'relation')
   const copiedChild = (parent, sourceTitle) => eventually(async () => {
     const state = await snapshot()
-    const ids = state.sessions.filter(row => row.title === sourceTitle + '（副本）').map(row => row.id)
+    const ids = state.sessions.filter(row => row.title === sourceTitle + ' (Copy)').map(row => row.id)
     return state.relations.find(row => row.parent === parent && ids.includes(row.child))?.child
   }, 'copied ' + sourceTitle)
 
@@ -350,7 +403,7 @@ try {
   assert.equal(await selected.count(), 0)
   await row('游戏').click({ button: 'right' })
   await page.getByRole('menuitem', { name: /Rename/ }).waitFor()
-  await page.getByRole('menuitem', { name: '创建子会话' }).waitFor()
+  await page.getByRole('menuitem', { name: 'Create child session' }).waitFor()
   await page.keyboard.press('Escape')
   await drag(row('生图'), row('游戏'), { fraction: 0.49 })
   await eventually(async () => await keyed(a).evaluate((source, targetId) => {
@@ -360,30 +413,30 @@ try {
   assert.equal((await snapshot()).relations.length, 0)
   await row('生图').click({ modifiers: ['Control'] })
   assert.equal(await keyed(a).getAttribute('data-session-tree-selected'), '')
-  await drag(row('生图'), row('游戏'), { ctrl: true, fraction: 0.49, hint: /挂载到 游戏 下/ })
+  await drag(row('生图'), row('游戏'), { ctrl: true, fraction: 0.49, hint: /Attach under 游戏/ })
   const gameArt = await copiedChild(c, '生图')
   assert.ok(!(await snapshot()).relations.some(edge => edge.child === a))
   await row('生图').waitFor()
-  await eventually(async () => await row('生图（副本）').getAttribute('data-session-tree-depth') === '1', 'nested native row')
-  await row('游戏').getByRole('button', { name: '折叠 游戏' }).click()
-  await row('生图（副本）').waitFor({ state: 'hidden' })
-  await row('游戏').getByRole('button', { name: '展开 游戏' }).click()
-  await row('生图（副本）').waitFor()
+  await eventually(async () => await row('生图 (Copy)').getAttribute('data-session-tree-depth') === '1', 'nested native row')
+  await row('游戏').getByRole('button', { name: 'Collapse 游戏' }).click()
+  await row('生图 (Copy)').waitFor({ state: 'hidden' })
+  await row('游戏').getByRole('button', { name: 'Expand 游戏' }).click()
+  await row('生图 (Copy)').waitFor()
   await prompt(c, 'DISPATCH:' + gameArt)
   await eventually(async () => (await snapshot()).receipts.find(receipt => receipt.child === gameArt), 'old parent assignment')
   await page.mouse.move(850, 400)
-  await drag(row('游戏'), row('生图（副本）'), { ctrl: true, hint: /后代/ })
-  await drag(row('生图（副本）'), row('游戏'), { ctrl: true, hint: /已经挂在/ })
-  await drag(row('生图（副本）'), row('生视频'), { ctrl: true, hint: /挂载到 生视频 下/ })
-  const confirmCopy = page.getByRole('dialog', { name: '确认挂载' })
-  await confirmCopy.getByText(/副本会携带已经写进历史的旧父会话任务及部分上下文/).waitFor()
-  await confirmCopy.getByRole('button', { name: '取消', exact: true }).click()
+  await drag(row('游戏'), row('生图 (Copy)'), { ctrl: true, hint: /descendant/ })
+  await drag(row('生图 (Copy)'), row('游戏'), { ctrl: true, hint: /already attached/ })
+  await drag(row('生图 (Copy)'), row('生视频'), { ctrl: true, hint: /Attach under 生视频/ })
+  const confirmCopy = page.getByRole('dialog', { name: 'Confirm attachment' })
+  await confirmCopy.getByText(/The copy retains earlier tasks and context recorded in its history/).waitFor()
+  await confirmCopy.getByRole('button', { name: 'Cancel', exact: true }).click()
   assert.ok(!(await snapshot()).relations.some(edge => edge.parent === b))
-  await drag(row('生图（副本）'), row('生视频'), { ctrl: true, hint: /挂载到 生视频 下/ })
-  await confirmCopy.getByRole('button', { name: '确认挂载', exact: true }).click()
+  await drag(row('生图 (Copy)'), row('生视频'), { ctrl: true, hint: /Attach under 生视频/ })
+  await confirmCopy.getByRole('button', { name: 'Confirm attachment', exact: true }).click()
   const copy = await eventually(async () => (await snapshot()).relations.find(edge => edge.parent === b && edge.parentBusiness), 'copied child')
   await relation(c, gameArt)
-  await row('生图（副本）（副本）').click()
+  await row('生图 (Copy) (Copy)').click()
   const copiedView = page.locator('[data-conversation-session="' + copy.child + '"]')
   await copiedView.getByText(/透明立绘/).first().waitFor()
   await copiedView.getByText(/Execution requested|请生成插图并交付/).first().waitFor()
@@ -392,14 +445,14 @@ try {
   await eventually(async () => (await snapshot()).receipts.find(receipt => receipt.taskId === copyTask.id), 'fork receipt')
   const rejected = await post('/api/session-tree', { type: 'attach', parent: gameArt, children: [c], previous: [null] })
   assert.equal(rejected.response.status(), 400)
-  await row('生图（副本）').click({ button: 'right' })
-  await page.getByRole('menuitem', { name: '解除挂载' }).click()
+  await row('生图 (Copy)').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Detach from parent' }).click()
   await eventually(async () => !(await snapshot()).relations.some(row => row.child === gameArt), 'detached')
   console.log('PASS Ctrl selection, native reorder, Ctrl attachment, context warning and cancellation, dispatch and cycle validation')
 
   await row('游戏').click()
   await select('游戏')
-  await page.getByRole('menuitem', { name: '创建子会话' }).click()
+  await page.getByRole('menuitem', { name: 'Create child session' }).click()
   const created = await eventually(async () => (await snapshot()).relations.find(row => row.parent === c && row.parentBusiness), 'new child with summary')
   await page.locator(`[data-conversation-session="${created.child}"]`).waitFor()
   const blankCopy = await post('/api/session-tree', { type: 'attach', parent: b, children: [created.child], previous: [c] })
@@ -417,7 +470,7 @@ try {
   const selectedCurrent = tree.locator('[data-session-tree-current][data-session-tree-selected]')
   assert.equal(await selectedCurrent.count(), 1)
   assert.equal(await selectedCurrent.evaluate(element => getComputedStyle(element, '::after').width), '3px')
-  await page.getByRole('menuitem', { name: /合并到新会话/ }).click()
+  await page.getByRole('menuitem', { name: /Merge into a new session/ }).click()
   const merged = await eventually(async () => (await snapshot()).merged[0], 'merged sources')
   assert.deepEqual(merged.sources.map(row => row.id).sort(), [a, b].sort())
   assert.notEqual(merged.id, a)
@@ -425,8 +478,8 @@ try {
   await prompt(merged.id, 'MERGED-TEST')
   await finished(merged.id, 'MERGED-TEST')
   const mergedInput = observed.find(row => !row.isSummary && row.latest.includes('MERGED-TEST'))
-  assert.equal(mergedInput.latest.split('合并业务上下文').length, 2)
-  assert.doesNotMatch(mergedInput.latest, /合并来源 ·/)
+  assert.equal(mergedInput.latest.split('Merged context').length, 2)
+  assert.doesNotMatch(mergedInput.latest, /Merge source ·/)
   assert.ok(observed.some(row => row.isSummary && row.latest.includes('Integrate and compress these separate conversation briefs')))
   assert.deepEqual((await snapshot()).sessions.filter(row => [a, b].includes(row.id)).map(row => row.id).sort(), [a, b].sort())
   console.log('PASS new child opens native conversation, merge preserves original IDs and presents sources')
@@ -447,7 +500,7 @@ try {
   console.log('PASS weighted source budgets, provider overflow retry, and one final merge')
 
   await select('生图', '生视频')
-  await page.getByRole('menuitem', { name: '创建共同父会话' }).click()
+  await page.getByRole('menuitem', { name: 'Create shared parent session' }).click()
   const pending = await eventually(async () => (await snapshot()).pending[0], 'pending parent')
   await page.locator(`[data-conversation-session="${pending.id}"]`).waitFor()
   assert.equal((await snapshot()).relations.filter(row => row.parent === pending.id && row.childBusiness).length, 0)
@@ -459,8 +512,8 @@ try {
   const composer = page.locator('[data-composer-input][contenteditable="true"]').first()
   await composer.fill(promptText)
   await composer.press('Enter')
-  await page.getByRole('button', { name: '重试已发送的总任务' }).waitFor()
-  await page.getByRole('button', { name: '重试已发送的总任务' }).click()
+  await page.getByRole('button', { name: 'Retry saved project task' }).waitFor()
+  await page.getByRole('button', { name: 'Retry saved project task' }).click()
   await finished(pending.id, 'FIRST-GOAL')
   assert.equal(observed.filter(row => !row.isSummary && row.latest.includes('FIRST-GOAL')).length, 1)
   const parentInput = observed.find(row => !row.isSummary && row.latest.includes('FIRST-GOAL'))
@@ -474,20 +527,20 @@ try {
   const task = await eventually(async () => (await snapshot()).tasks.find(task => task.child === parentArt), 'task queued')
   assert.ok(['waiting', 'sending', 'queued', 'running'].includes(task.status))
   await eventually(async () => (await snapshot()).receipts.find(receipt => receipt.taskId === task.id), 'delegated receipt')
-  const dispatched = observed.find(row => !row.isSummary && row.latest.includes(`来自 共同父会话 [${pending.id}]`)
+  const dispatched = observed.find(row => !row.isSummary && row.latest.includes(`From Shared Parent Session [${pending.id}]`)
     && row.latest.includes('请生成插图并交付'))
   assert.ok(dispatched)
-  assert.match(dispatched.latest, /来自 共同父会话/)
+  assert.match(dispatched.latest, /From Shared Parent Session/)
   assert.doesNotMatch(JSON.stringify(dispatched.body.messages), /生视频：制作 4 秒片头/)
   await keyed(parentArt).click()
   const childView = page.locator(`[data-conversation-session="${parentArt}"]`)
   await childView.waitFor()
   await childView.getByText(/请生成插图并交付 assets\/sprite.png/).first().waitFor()
-  await keyed(parentArt).getByRole('button', { name: '生图（副本）的会话协作记录' }).click()
-  const dispatchLog = page.getByRole('region', { name: '会话协作记录' })
-  await dispatchLog.getByText(/来自 共同父会话/).click()
+  await keyed(parentArt).getByRole('button', { name: 'Collaboration log for 生图 (Copy)' }).click()
+  const dispatchLog = page.getByRole('region', { name: 'Collaboration log' })
+  await dispatchLog.getByText(/From Shared Parent Session/).click()
   await dispatchLog.getByText('请生成插图并交付 assets/sprite.png', { exact: true }).waitFor()
-  await eventually(() => observed.some(row => !row.isSummary && row.latest.includes('本批派发任务已结算')
+  await eventually(() => observed.some(row => !row.isSummary && row.latest.includes('This batch of child tasks has settled')
     && row.latest.includes(task.id)), 'one continuation after dispatch')
   await eventually(async () => !(await snapshot()).sessions.find(row => row.id === pending.id)?.running, 'parent ready after continuation')
   const calls = observed.length
@@ -497,7 +550,7 @@ try {
   assert.equal(observed.slice(calls).filter(row => !row.isSummary).length, 1)
   await prompt(pending.id, 'READ-RECEIPTS')
   await finished(pending.id, 'READ-RECEIPTS')
-  assert.match(JSON.stringify(observed.find(row => !row.isSummary && row.latest.includes('READ-RECEIPTS')).body.messages), /子会话 .* · 第/)
+  assert.match(JSON.stringify(observed.find(row => !row.isSummary && row.latest.includes('READ-RECEIPTS')).body.messages), /Child session .* · Turn/)
   console.log('PASS queued native dispatch, child isolation, one receipt and idle parent')
 
   await prompt(parentVideo, 'RECEIPT-LIMIT')
@@ -515,11 +568,11 @@ try {
   assert.equal(rawFallback.status, 'completed')
   assert.ok(rawFallback.summary.attempts.length === 3 && rawFallback.summary.attempts.every(row => row.category === 'empty'))
   assert.ok(rawFallback.artifacts.includes('E:/fixture/scene-boss.svg'))
-  await eventually(() => observed.some(row => !row.isSummary && row.latest.startsWith('来自 ')
+  await eventually(() => observed.some(row => !row.isSummary && row.latest.startsWith('From ')
     && row.latest.includes('INTEGRATE-FIXTURE') && row.latest.includes('E:/fixture/scene-boss.svg')), 'raw artifact sent to downstream')
-  await eventually(() => observed.some(row => !row.isSummary && row.latest.includes('本批派发任务已结算')
+  await eventually(() => observed.some(row => !row.isSummary && row.latest.includes('This batch of child tasks has settled')
     && row.latest.includes(downstream.id)), 'dependency completion wakes parent')
-  assert.equal(observed.filter(row => !row.isSummary && row.latest.includes('本批派发任务已结算')
+  assert.equal(observed.filter(row => !row.isSummary && row.latest.includes('This batch of child tasks has settled')
     && row.latest.includes(downstream.id)).length, 1)
   console.log('PASS 10000-token cap, recompression, raw fallback, dependency and automatic continuation')
 
@@ -554,12 +607,12 @@ try {
   assert.equal((await snapshot()).receipts.filter(row => row.taskId === task.id).length, 1)
   console.log('PASS persisted originals, recovery of missing receipt and deduplication after hard restart')
 
-  await row('共同父会话').click()
-  await row('共同父会话').getByRole('button', { name: '共同父会话的会话协作记录' }).click()
-  await page.getByRole('region', { name: '会话协作记录' }).waitFor()
+  await row('Shared Parent Session').click()
+  await row('Shared Parent Session').getByRole('button', { name: 'Collaboration log for Shared Parent Session' }).click()
+  await page.getByRole('region', { name: 'Collaboration log' }).waitFor()
   if (process.env.SESSION_TREE_SCREENSHOT) await page.screenshot({ path: process.env.SESSION_TREE_SCREENSHOT })
 
-  await row('共同父会话').click({ button: 'right' })
+  await row('Shared Parent Session').click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Archive( session)?$/ }).click()
   await eventually(async () => {
     const state = await snapshot()
@@ -573,7 +626,7 @@ try {
   const more = tree.getByRole('button', { name: /Show \d+ more sessions/ }).first()
   while (!(await keyed(a).isVisible()) && await more.isVisible()) await more.click()
   await keyed(a).click()
-  await drag(row('生图'), row('新挂载目标'), { ctrl: true, hint: /挂载到 新挂载目标 下/ })
+  await drag(row('生图'), row('新挂载目标'), { ctrl: true, hint: /Attach under 新挂载目标/ })
   const reattached = await copiedChild(d, '生图')
   await tree.locator('[data-row-key="session:' + reattached + '"]').click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Archive( session)?$/ }).click()
@@ -599,11 +652,11 @@ try {
   await page.getByRole('button', { name: 'View options' }).click()
   await page.getByText('All conversations (show archived)', { exact: true }).click()
   await expandGroup(home.split(/[\\/]/).at(-1))
-  await row('共同父会话').getByRole('button', { name: '共同父会话的会话颜色' }).waitFor()
-  await row('共同父会话').getByRole('button', { name: '共同父会话的会话协作记录' }).click()
-  await page.getByText('已保存的首条总任务', { exact: true }).click()
+  await row('Shared Parent Session').getByRole('button', { name: 'Session color for Shared Parent Session' }).waitFor()
+  await row('Shared Parent Session').getByRole('button', { name: 'Collaboration log for Shared Parent Session' }).click()
+  await page.getByText('Saved first project task', { exact: true }).click()
   await page.getByText('旧版首条总任务', { exact: true }).waitFor()
-  await row('共同父会话').click({ button: 'right' })
+  await row('Shared Parent Session').click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Unarchive( session)?$/ }).click()
   await eventually(async () => {
     const state = await snapshot()
@@ -638,7 +691,7 @@ try {
   assert.ok(observed.some(r => r.body.messages.some(m => Array.isArray(m.content) && m.content.some(b => b.type === 'tool_use' && b.name === 'session_tree_result'))))
   const artRun = observed.slice(callsBeforeArtwork)
   for (const next of ['pwsh', 'session_tree_list']) {
-    assert.match(JSON.stringify(artRun.find(r => r.sent === next)?.result), /父会话只能拆分任务/)
+    assert.match(JSON.stringify(artRun.find(r => r.sent === next)?.result), /The parent session coordinates work/)
   }
   await assert.rejects(readFile(join(home, 'parent-write-should-not-exist.svg')), { code: 'ENOENT' })
   await assert.rejects(readFile(join(home, 'parent-shell-should-not-exist.svg')), { code: 'ENOENT' })
@@ -659,7 +712,7 @@ try {
   const beforeNative = observed.length
   await prompt(scenery, 'NATIVE: start native subagent')
   await finished(scenery, 'NATIVE: start native subagent')
-  assert.ok(observed.slice(beforeNative).some(r => JSON.stringify(r.body.messages).includes('已启用可见子会话')))
+  assert.ok(observed.slice(beforeNative).some(r => JSON.stringify(r.body.messages).includes('This session uses visible child sessions')))
   assert.ok(!observed.slice(beforeNative).some(r => !r.isSummary && r.latest.includes('NATIVE-CHILD first task')))
 
   const beforeAssistant = observed.find(r => !r.isSummary && r.latest.includes('WORKER-ART'))
@@ -668,7 +721,7 @@ try {
     .map(item => JSON.stringify(item)).findLast(item => item?.includes(phrase))
   const executorMarker = 'You are an executor for your direct parent.'
   assert.ok(systemText(beforeAssistant, executorMarker))
-  assert.ok(JSON.stringify(beforeAssistant.body.messages).includes('本项目分工'))
+  assert.ok(JSON.stringify(beforeAssistant.body.messages).includes('Project role'))
   for (const name of ['session_tree_list', 'session_tree_send', 'session_tree_create', 'session_tree_result']) {
     assert.ok(beforeAssistant.body.tools.some(tool => tool.name === name), name)
   }
@@ -678,7 +731,7 @@ try {
   const painter = await eventually(async () => (await snapshot()).relations.find(r => r.parent === scenery && r.role?.alias === '背景绘制'), 'nested child created')
   const paintTask = await eventually(async () => (await snapshot()).tasks.find(t => t.parent === scenery && t.child === painter.child), 'grandchild dispatch')
   await eventually(async () => (await snapshot()).receipts.find(r => r.taskId === paintTask.id && r.parent === scenery), 'grandchild receipt')
-  const leafRequest = observed.find(r => !r.isSummary && r.latest.includes('LOCAL-BRIEF') && r.latest.includes(`来自 场景原会话（副本） [${scenery}]`))
+  const leafRequest = observed.find(r => !r.isSummary && r.latest.includes('LOCAL-BRIEF') && r.latest.includes(`From 场景原会话 (Copy) [${scenery}]`))
   assert.ok(leafRequest)
   assert.doesNotMatch(JSON.stringify(leafRequest.body.messages), /UPSTREAM-ONLY|assets\/story.md|assets\/mario.svg/)
   assert.ok(!(await snapshot()).receipts.some(r => r.child === painter.child && r.parent === coordinator))
@@ -695,41 +748,41 @@ try {
 
   const cycles = await post('/api/session-tree', { type: 'attach', parent: painter.child, children: [coordinator], previous: [null] })
   assert.equal(cycles.response.status(), 400)
-  assert.match(cycles.body.error, /后代/)
+  assert.match(cycles.body.error, /descendant/)
   await expandGroup('Ungrouped')
   await keyed(coordinator).click()
   await eventually(async () => await keyed(painter.child).getAttribute('data-session-tree-depth') === '2', 'grandchild indentation')
-  await keyed(coordinator).getByRole('button', { name: '折叠 游戏整合' }).click()
+  await keyed(coordinator).getByRole('button', { name: 'Collapse 游戏整合' }).click()
   await keyed(painter.child).waitFor({ state: 'hidden' })
-  await keyed(coordinator).getByRole('button', { name: '展开 游戏整合' }).click()
+  await keyed(coordinator).getByRole('button', { name: 'Expand 游戏整合' }).click()
   await keyed(painter.child).click()
   await page.locator(`[data-conversation-session="${painter.child}"]`).waitFor()
   await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ state: 'visible' })
   await keyed(coordinator).click()
-  await keyed(coordinator).getByRole('button', { name: '游戏整合的会话协作记录' }).click()
+  await keyed(coordinator).getByRole('button', { name: 'Collaboration log for 游戏整合' }).click()
   await page.getByRole('button', { name: '背景美术 ↗' }).waitFor()
 
   const dot = id => keyed(id).locator('.dsh-tree-color-mark')
-  const palette = page.getByRole('dialog', { name: /会话颜色/ })
+  const palette = page.getByRole('dialog', { name: /Session color/ })
   const projectNodes = [coordinator, scenery, painter.child, art, newStory.child]
   const initialColor = (await snapshot()).colors[coordinator].value
-  await eventually(async () => await dot(painter.child).getAttribute('title') === '会话颜色 ' + initialColor, 'inherited color dot')
+  await eventually(async () => await dot(painter.child).getAttribute('title') === 'Session color ' + initialColor, 'inherited color dot')
   await dot(painter.child).click()
-  assert.equal(await palette.getByRole('group', { name: '预设颜色' }).getByRole('button').count(), 28)
-  await palette.getByRole('textbox', { name: '十六进制颜色值' }).fill('#3b317e')
-  await palette.getByRole('button', { name: '保存此会话颜色' }).click()
+  assert.equal(await palette.getByRole('group', { name: 'Preset colors' }).getByRole('button').count(), 28)
+  await palette.getByRole('textbox', { name: 'Hex color value' }).fill('#3b317e')
+  await palette.getByRole('button', { name: 'Save session color' }).click()
   await palette.waitFor({ state: 'hidden' })
   assert.equal((await snapshot()).colors[art].value, initialColor)
   await dot(coordinator).click()
   const rootColor = initialColor === '#4abec3' ? '#f38b5e' : '#4abec3'
   await palette.getByRole('button', { name: rootColor, exact: true }).click()
-  await palette.getByRole('button', { name: '保存顶层颜色' }).click()
+  await palette.getByRole('button', { name: 'Save root color' }).click()
   await palette.waitFor({ state: 'hidden' })
   const changedColors = (await snapshot()).colors
   assert.equal(changedColors[painter.child].value, '#3b317e')
   assert.equal(changedColors[scenery].value, rootColor)
   await dot(painter.child).click()
-  await palette.getByRole('button', { name: '统一整棵会话树' }).click()
+  await palette.getByRole('button', { name: 'Apply to entire tree' }).click()
   await palette.waitFor({ state: 'hidden' })
   const unifiedColors = (await snapshot()).colors
   assert.ok(projectNodes.every(id => unifiedColors[id].value === '#3b317e' && !unifiedColors[id].custom))
@@ -744,10 +797,10 @@ try {
   await keyed(coordinator).click()
   await keyed(otherParent).click({ modifiers: ['Control'] })
   await keyed(art).click({ modifiers: ['Control'] })
-  const foldRoot = keyed(coordinator).getByRole('button', { name: '折叠 游戏整合' })
+  const foldRoot = keyed(coordinator).getByRole('button', { name: 'Collapse 游戏整合' })
   await foldRoot.click()
   await keyed(coordinator).click({ modifiers: ['Shift'] })
-  await keyed(coordinator).getByRole('button', { name: '展开 游戏整合' }).click()
+  await keyed(coordinator).getByRole('button', { name: 'Expand 游戏整合' }).click()
   for (const id of [otherParent, coordinator, art, scenery, painter.child, newStory.child]) {
     assert.equal(await keyed(id).getAttribute('data-session-tree-selected'), '', id)
   }
@@ -755,28 +808,28 @@ try {
   assert.equal(await keyed(otherParent).getAttribute('data-session-tree-selected'), '')
   assert.equal(await tree.locator('[data-session-tree-selected]').count(), 1)
   await keyed(copyTarget).click()
-  const warning = page.getByRole('dialog', { name: '确认挂载' })
-  const omitted = warning.getByText(/本次迁移不携带子节点/)
-  const inherited = warning.getByText(/副本会携带已经写进历史的旧父会话任务/)
-  const cancelWarning = () => warning.getByRole('button', { name: '取消', exact: true }).click()
-  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /挂载到 目标项目 下/ })
+  const warning = page.getByRole('dialog', { name: 'Confirm attachment' })
+  const omitted = warning.getByText(/This attachment omits the child sessions/)
+  const inherited = warning.getByText(/The copy retains earlier tasks and context/)
+  const cancelWarning = () => warning.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /Attach under 目标项目/ })
   await omitted.waitFor()
   assert.equal(await inherited.count(), 0)
   await cancelWarning()
-  await drag(keyed(scenery), keyed(copyTarget), { ctrl: true, hint: /挂载到 目标项目 下/ })
+  await drag(keyed(scenery), keyed(copyTarget), { ctrl: true, hint: /Attach under 目标项目/ })
   await omitted.waitFor()
   await inherited.waitFor()
   await cancelWarning()
   for (const id of [coordinator, otherParent]) await keyed(id).click({ modifiers: ['Control'] })
-  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /挂载到 目标项目 下/ })
+  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /Attach under 目标项目/ })
   await omitted.waitFor()
   await cancelWarning()
   assert.equal((await snapshot()).relations.filter(r => r.parent === copyTarget).length, 0)
   await keyed(painter.child).click({ modifiers: ['Control'] })
-  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /挂载到 目标项目 下/ })
+  await drag(keyed(coordinator), keyed(copyTarget), { ctrl: true, hint: /Attach under 目标项目/ })
   await inherited.waitFor()
   assert.equal(await omitted.count(), 0)
-  await warning.getByRole('button', { name: '确认挂载', exact: true }).click()
+  await warning.getByRole('button', { name: 'Confirm attachment', exact: true }).click()
   const rootCopy = await copiedChild(copyTarget, '游戏整合')
   const otherCopy = await copiedChild(copyTarget, '第二个来源父会话')
   const assistantCopy = await copiedChild(rootCopy, '背景绘制')
@@ -812,7 +865,7 @@ try {
   await prompt(coordinator, 'BACKFILL-FIXTURE Resume with one legacy unnamed artist.')
   await finished(coordinator, 'BACKFILL-FIXTURE')
   invalidRoles = false
-  assert.equal((await snapshot()).relations.find(r => r.child === art)?.role?.alias, '立绘原会话(副本)')
+  assert.equal((await snapshot()).relations.find(r => r.child === art)?.role?.alias, '立绘原会话 (Copy)')
   await expandGroup('Ungrouped')
   await keyed(coordinator).click({ button: 'right' })
   await page.getByRole('menuitem', { name: /^Archive( session)?$/ }).click()
@@ -823,7 +876,7 @@ try {
   const archivedColors = (await snapshot()).colors
   assert.ok(projectNodes.every(id => archivedColors[id].value === '#3b317e'))
   assert.equal((await post('/api/session-tree', { type: 'color', id: art, value: 'transparent', unify: false })).response.status(), 400)
-  await eventually(async () => await dot(scenery).getAttribute('title') === '会话颜色 #3b317e', 'color dot survives branch archive')
+  await eventually(async () => await dot(scenery).getAttribute('title') === 'Session color #3b317e', 'color dot survives branch archive')
   console.log('PASS color palette, isolated override, root propagation, branch unification, copy, migration, archive and restart')
   console.log('PASS role-based roster, create/retry, native delegation guard, three levels, one-hop context and receipts, restart, legacy fallback and branch archive')
 
@@ -835,18 +888,18 @@ try {
   await expandGroup('Ungrouped')
   await keyed(removed).click()
   await keyed(removed).click({ button: 'right' })
-  await page.getByRole('menuitem', { name: '移到回收站' }).click()
-  const recycleDialog = page.getByRole('dialog', { name: '删除会话' })
-  await recycleDialog.getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Move to Recycle Bin' }).click()
+  const recycleDialog = page.getByRole('dialog', { name: 'Delete sessions' })
+  await recycleDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   assert.ok((await snapshot()).sessions.some(row => row.id === removed))
   await keyed(removed).click({ button: 'right' })
-  await page.getByRole('menuitem', { name: '移到回收站' }).click()
+  await page.getByRole('menuitem', { name: 'Move to Recycle Bin' }).click()
   const recycleResponse = page.waitForResponse(response => response.url().includes('/api/session-tree')
     && response.request().method() === 'POST' && response.request().postDataJSON()?.type === 'recycle')
-  await recycleDialog.getByRole('button', { name: '移到回收站', exact: true }).click()
+  await recycleDialog.getByRole('button', { name: 'Move to Recycle Bin', exact: true }).click()
   const recycled = await recycleResponse
   assert.ok(recycled.ok(), await recycled.text())
-  await page.getByText('会话已移到回收站', { exact: true }).waitFor({ timeout: 18000 })
+  await page.getByText('Session moved to the Recycle Bin.', { exact: true }).waitFor({ timeout: 18000 })
   await keyed(removed).waitFor({ state: 'detached' })
   const afterRecycle = await snapshot()
   assert.ok(!afterRecycle.sessions.some(row => row.id === removed))
@@ -867,6 +920,26 @@ try {
   assert.ok(!(await snapshot()).sessions.some(row => row.id === removed))
   console.log('PASS recycle dialog, live deletion, detached surviving child, disk removal and restart')
 
+  const batchA = await make('Batch Recycle A', 'Recycle only selected fixture A')
+  const batchB = await make('Batch Recycle B', 'Recycle only selected fixture B')
+  await expandGroup('Ungrouped')
+  for (const id of [batchA, batchB]) await keyed(id).click({ modifiers: ['Control'] })
+  await keyed(batchA).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Move to Recycle Bin (2)', exact: true }).click()
+  await recycleDialog.getByText(/Move 2 selected sessions to the Recycle Bin/).waitFor()
+  await recycleDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  assert.ok((await snapshot()).sessions.some(row => row.id === batchB))
+  await keyed(batchA).click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Move to Recycle Bin (2)', exact: true }).click()
+  const batchResponse = page.waitForResponse(response => response.url().includes('/api/session-tree')
+    && response.request().method() === 'POST' && response.request().postDataJSON()?.type === 'recycle-batch')
+  await recycleDialog.getByRole('button', { name: 'Move to Recycle Bin', exact: true }).click()
+  const batchResult = await (await batchResponse).json()
+  assert.deepEqual(new Set(batchResult.recycle.recycled), new Set([batchA, batchB]))
+  assert.deepEqual(batchResult.recycle.failed, [])
+  assert.ok(batchResult.snapshot.sessions.some(row => row.id === kept))
+  console.log('PASS multi-select Recycle Bin confirmation, cancellation and selected removal')
+
   const blankSource = await make('坦克绘制验收', 'Draw the tank sprite.')
   await expandGroup('Ungrouped')
   await keyed(blankSource).click()
@@ -878,7 +951,7 @@ try {
     return id && (await snapshot()).sessions.find(row => row.id === id && row.blank && row.cwd)
   }, 'blank conversation in a workspace')
   if (!(await keyed(blankSource).isVisible())) await expandGroup('Ungrouped')
-  await drag(keyed(blankSource), keyed(blankTarget.id), { ctrl: true, hint: /挂载到/ })
+  await drag(keyed(blankSource), keyed(blankTarget.id), { ctrl: true, hint: /Attach under/ })
   const tankCopy = await copiedChild(blankTarget.id, '坦克绘制验收')
   assert.notEqual(tankCopy, blankSource)
   assert.ok(!(await snapshot()).relations.some(row => row.child === blankSource))
@@ -886,6 +959,155 @@ try {
   await keyed(blankTarget.id).click()
   await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ state: 'visible' })
   console.log('PASS Ctrl drag to a blank conversation without sending a first prompt')
+
+  const acceptanceParent = blankTarget.id
+  const acceptanceTool = async (toolName, args) => {
+    const request = 'ACCEPTANCE-TOOL:' + JSON.stringify({ tool: toolName, input: args })
+    const startAt = observed.length
+    await prompt(acceptanceParent, request)
+    const response = await eventually(() => {
+      const sent = observed.findIndex((row, index) => index >= startAt && row.sent === toolName && row.latest.includes(request))
+      if (sent !== -1) return observed.slice(sent + 1).find(row => row.previous === toolName && row.result !== undefined)
+    }, 'acceptance tool result: ' + toolName)
+    await finished(acceptanceParent, request)
+    return response.result
+  }
+  const light = await acceptanceTool('session_tree_plan', { workspace: 'existing', objective: 'Reuse existing art for one playable room',
+    depth: 'light', checks: ['Playable room goes from start to ending'] })
+  assert.ok(light.id, JSON.stringify(light))
+  const lightweight = await acceptanceTool('session_tree_send', { project: light.id, child: tankCopy,
+    phase: 'integration', checks: ['Existing room asset loads'], message: 'ACCEPTANCE-CHILD-LIGHT Reuse current material' })
+  assert.ok(lightweight.id, JSON.stringify(lightweight))
+  const receiptFor = id => eventually(async () => (await snapshot()).receipts.find(row => row.taskId === id), 'receipt ' + id)
+  const lightReceipt = await receiptFor(lightweight.id)
+  assert.equal(lightReceipt.acceptance?.local?.[0]?.status, 'passed')
+  assert.equal(lightReceipt.acceptance?.final?.[0]?.status, 'passed')
+  assert.ok(lightReceipt.artifacts.includes('E:/fixture/accepted.html'))
+  const lightConfirmed = await acceptanceTool('session_tree_accept', { project: light.id, proof: lightweight.id })
+  assert.equal(lightConfirmed.acceptedBy, lightweight.id)
+  assert.equal((await snapshot()).tasks.filter(row => row.acceptance?.project === light.id).length, 1)
+  await keyed(acceptanceParent).click()
+  await keyed(acceptanceParent).getByRole('button', { name: /Collaboration log for/ }).click()
+  await page.getByText('Project acceptance · Light · Passed', { exact: true }).waitFor()
+
+  const thorough = await acceptanceTool('session_tree_plan', { workspace: 'existing', objective: 'Integrate and verify a larger release',
+    depth: 'thorough', checks: ['Integrated output completes the full route'] })
+  assert.ok(thorough.id, JSON.stringify(thorough))
+  const artChecks = ['Visual artifact opens']
+  const sendAcceptance = args => acceptanceTool('session_tree_send', { project: thorough.id, child: tankCopy, ...args })
+  const defect = await sendAcceptance({ phase: 'work', checks: artChecks, message: 'ACCEPTANCE-CHILD-FAIL Check asset' })
+  const defectReceipt = await receiptFor(defect.id)
+  assert.equal(defectReceipt.status, 'completed')
+  assert.equal(defectReceipt.acceptance?.local?.[0]?.status, 'failed')
+  const localChecks = ['All handoffs are present']
+  const halted = await sendAcceptance({ phase: 'integration', checks: localChecks,
+    message: 'ACCEPTANCE-CHILD-BLOCKED Must wait for approved work' })
+  assert.equal((await receiptFor(halted.id)).status, 'failed')
+  assert.ok(!observed.some(row => row.latest.startsWith('From ') && row.latest.includes('ACCEPTANCE-CHILD-BLOCKED')))
+  const repaired = await sendAcceptance({ phase: 'work', checks: artChecks, replaces: defect.id,
+    message: 'ACCEPTANCE-CHILD-PASS Repair failed check only' })
+  assert.equal((await receiptFor(repaired.id)).acceptance?.local?.[0]?.status, 'passed')
+  const integrated = await sendAcceptance({ phase: 'integration', checks: localChecks, replaces: halted.id,
+    message: 'ACCEPTANCE-CHILD-INTEGRATE Use accepted asset' })
+  assert.deepEqual(integrated.after, [repaired.id])
+  await receiptFor(integrated.id)
+  const premature = await acceptanceTool('session_tree_accept', { project: thorough.id, proof: integrated.id })
+  assert.ok(!premature?.acceptedBy)
+  const failedReview = await sendAcceptance({ phase: 'review', message: 'ACCEPTANCE-CHILD-REVIEW-FAIL Detect an integration defect' })
+  assert.deepEqual(failedReview.after, [integrated.id])
+  assert.equal((await receiptFor(failedReview.id)).acceptance?.final?.[0]?.status, 'failed')
+  assert.ok(!(await acceptanceTool('session_tree_accept', { project: thorough.id, proof: failedReview.id }))?.acceptedBy)
+  const rebuilt = await sendAcceptance({ phase: 'integration', checks: localChecks, replaces: integrated.id,
+    message: 'ACCEPTANCE-CHILD-INTEGRATE Repair the final output without changing the approved art' })
+  assert.deepEqual(rebuilt.after, [repaired.id])
+  await receiptFor(rebuilt.id)
+  const review = await sendAcceptance({ phase: 'review', message: 'ACCEPTANCE-CHILD-REVIEW Verify repaired integration' })
+  assert.deepEqual(review.after, [rebuilt.id])
+  assert.equal((await receiptFor(review.id)).acceptance?.final?.[0]?.status, 'passed')
+  const confirmed = await acceptanceTool('session_tree_accept', { project: thorough.id, proof: review.id })
+  assert.equal(confirmed.acceptedBy, review.id)
+  await stop()
+  url = await start()
+  await page.goto(url)
+  assert.ok((await snapshot()).projects.some(project => project.id === thorough.id && project.acceptedBy === review.id))
+  console.log('PASS light work passes both levels in one dispatch; thorough work blocks failed handoffs, repairs and verifies the final integration')
+
+  await setNaming('English')
+  assert.equal((await snapshot()).preferences.aliasLanguage, 'en')
+  const namingError = await acceptanceTool('session_tree_create', { alias: '构建执行', responsibility: 'Implementation' })
+  assert.match(namingError, /English/)
+  await setNaming('Follow DeepSeek Harness')
+  await eventually(async () => {
+    const { preferences } = await snapshot()
+    return preferences.aliasLanguage === 'follow' && preferences.interfaceLocale === 'en'
+  }, 'settings persist desktop interface locale')
+  const oldGame = join(home, 'old-fixture-game.html')
+  await writeFile(oldGame, 'existing game remains independent')
+  const isolatedProject = await acceptanceTool('session_tree_plan', { objective: 'Deliver a new mini-game', depth: 'thorough',
+    checks: ['Final game opens'] })
+  assert.ok(isolatedProject.directory?.includes(isolatedProject.id))
+  const builder = await acceptanceTool('session_tree_create', { alias: 'Game Builder', responsibility: 'Integrate the new mini-game' })
+  const artist = await acceptanceTool('session_tree_create', { alias: 'Game Artist', responsibility: 'Create a new art artifact' })
+  assert.ok(builder.id && artist.id && builder.id !== artist.id)
+  const sendIsolated = args => acceptanceTool('session_tree_send', { project: isolatedProject.id, ...args })
+  const invalidTarget = await sendIsolated({ child: 'missing', phase: 'work', checks: ['Existing check'], message: 'Does not exist' })
+  assert.match(invalidTarget, new RegExp(builder.id))
+  const asset = await sendIsolated({ child: ' GAME ARTIST ', phase: 'work', checks: ['Asset exists'], message: '#ISOLATED-WORK' })
+  assert.equal(asset.child, artist.id)
+  const assetReceipt = await receiptFor(asset.id)
+  const assetPath = join(isolatedProject.directory, 'workers', artist.id, 'asset.txt')
+  assert.equal(await readFile(assetPath, 'utf8'), 'new fixture deliverable')
+  assert.deepEqual(assetReceipt.artifacts.map(path => path.toLowerCase()), [assetPath.toLowerCase()])
+  const build = await sendIsolated({ child: 'Game Builder', phase: 'integration', checks: ['Bundle loads'], message: '#ISOLATED-BUILD' })
+  const buildReceipt = await receiptFor(build.id)
+  const finalGame = join(isolatedProject.directory, 'workers', builder.id, 'output', 'game.html')
+  assert.equal(await readFile(finalGame, 'utf8'), 'new fixture deliverable')
+  assert.ok(observed.some(row => row.result?.includes?.('assigned isolated task directory') && row.previous === 'session_tree_report'))
+  assert.deepEqual(buildReceipt.artifacts.map(path => path.toLowerCase()), [finalGame.toLowerCase()])
+  assert.ok(observed.some(row => row.latest.includes('#ISOLATED-BUILD') && row.latest.includes(assetPath)))
+  const isolatedReview = await sendIsolated({ child: 'Game Artist', phase: 'review', message: '#ISOLATED-REVIEW' })
+  await receiptFor(isolatedReview.id)
+  assert.ok(observed.some(row => row.latest.includes('#ISOLATED-REVIEW') && row.latest.includes(finalGame)))
+  assert.equal((await acceptanceTool('session_tree_accept', { project: isolatedProject.id, proof: isolatedReview.id })).acceptedBy, isolatedReview.id)
+  assert.equal(await readFile(oldGame, 'utf8'), 'existing game remains independent')
+  console.log('PASS alias dispatch, language settings, per-child folders, explicit artifact handoff and old-deliverable rejection')
+
+  const namingA = await make('English Source A', 'Locale switch fixture A')
+  const namingB = await make('English Source B', 'Locale switch fixture B')
+  const namingParent = await post('/api/session-tree', { type: 'new-parent', anchor: namingA, sources: [namingA, namingB] })
+  assert.ok(namingParent.response.ok())
+  const rootId = namingParent.body.opened
+  const copyA = await copiedChild(rootId, 'English Source A')
+  const copyB = await copiedChild(rootId, 'English Source B')
+  await expandGroup('Ungrouped')
+  await keyed(rootId).click()
+  await keyed(rootId).getByText('Awaiting task', { exact: true }).waitFor()
+  await keyed(copyA).click({ button: 'right' })
+  const menu = page.getByRole('menu')
+  for (const label of ['Create child session', 'Detach from parent', 'Collaboration log', 'Session color', 'Move to Recycle Bin']) {
+    await menu.getByRole('menuitem', { name: label, exact: true }).waitFor()
+  }
+  assert.doesNotMatch(await menu.innerText(), /\p{Script=Han}/u)
+  await page.keyboard.press('Escape')
+  await keyed(rootId).getByRole('button', { name: 'Collaboration log for Shared Parent Session' }).click()
+  await page.getByText('Send the first project task to sync context.', { exact: true }).waitFor()
+  await page.evaluate(() => { document.documentElement.lang = 'zh-CN' })
+  await eventually(async () => {
+    const { sessions } = await snapshot()
+    return sessions.find(row => row.id === rootId)?.title === '共同父会话'
+      && sessions.find(row => row.id === copyB)?.title === 'English Source B（副本）'
+  }, 'Chinese generated titles')
+  await keyed(rootId).getByText('待总任务', { exact: true }).waitFor()
+  await rpc('session/rename', { sessionId: copyA, title: 'Hand-edited title（副本）' })
+  await page.evaluate(() => { document.documentElement.lang = 'en' })
+  await eventually(async () => {
+    const { sessions } = await snapshot()
+    return sessions.find(row => row.id === rootId)?.title === 'Shared Parent Session'
+      && sessions.find(row => row.id === copyB)?.title === 'English Source B (Copy)'
+  }, 'legacy generated titles switch to English')
+  assert.equal((await snapshot()).sessions.find(row => row.id === copyA)?.title, 'Hand-edited title（副本）')
+  await keyed(rootId).getByText('Awaiting task', { exact: true }).waitFor()
+  console.log('PASS English menu and pending labels, live bilingual switch, legacy title migration and manual-title preservation')
 } catch (error) {
   console.error(logs.replace(/token=\S+/g, 'token=[redacted]'))
   console.error(pageErrors.slice(-20))
